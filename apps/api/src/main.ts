@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import path from "node:path";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
@@ -7,6 +8,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
+import fastifyStatic from "@fastify/static";
 import { AppModule } from "./app.module.js";
 import { loadConfig } from "./config.js";
 import { SessionService } from "./session.service.js";
@@ -24,6 +26,12 @@ export async function createApplication() {
     credentials: true,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   });
+  const publicDirectory = path.resolve(process.cwd(), "dist", "public");
+  await app.register(fastifyStatic as never, {
+    root: publicDirectory,
+    prefix: "/",
+  });
+
   app.setGlobalPrefix("api/v1");
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }));
   await app.get(SessionService).connect();
