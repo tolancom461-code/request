@@ -45,4 +45,29 @@ describe("Phase 5 requisition UI contract", () => {
     }
     expect((i18n.match(/chooseQuantityUnit:/g) ?? []).length).toBeGreaterThanOrEqual(3);
   });
+
+  it("supports touch-first catalog cards, fixed page sizes, all categories, and automatic single-branch selection", async () => {
+    const ui = await read("apps/web/src/components/requisition.tsx");
+    for (const contract of [
+      'data.length === 1 ? data[0]!.id',
+      'categoryId === "all"',
+      '([5, 10, 15] as const)',
+      '"requisition.catalog.pageSize"',
+      't("previous")',
+      't("next")',
+      "CatalogImage",
+      "item.imageUrl",
+      "item.baseUnit",
+    ]) expect(ui).toContain(contract);
+  });
+
+  it("exposes an all-category catalog endpoint and returns touch-card image and base-unit metadata", async () => {
+    const controller = await read("apps/api/src/requisition.controller.ts");
+    const service = await read("apps/api/src/requisition.service.ts");
+    expect(controller).toContain('@Get("requisition/branches/:branchId/items")');
+    expect(service).toContain("signedItemImageUrl");
+    expect(service).toContain("baseUnit");
+    expect(service).toContain("categoryId: string | undefined");
+  });
+
 });

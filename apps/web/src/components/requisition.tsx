@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Badge, Box, Button, Card, CardActionArea, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Pagination, Paper, Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from "@mui/material";
+import { Alert, Badge, Box, Button, Card, CardActionArea, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Paper, Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from "@mui/material";
 import AddShoppingCartOutlinedIcon from "@mui/icons-material/AddShoppingCartOutlined";
+import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
+import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
-import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
 import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
 import ShoppingCartOutlinedIcon from "@mui/icons-material/ShoppingCartOutlined";
 import { BusyButton, EmptyState, ErrorState, LoadingState, PageHeader, SectionCard } from "./foundation";
@@ -11,7 +12,7 @@ import { BusyButton, EmptyState, ErrorState, LoadingState, PageHeader, SectionCa
 type ApiError = Error & { status?: number };
 type Branch = { id: string; code: string; nameAr: string; nameEn: string | null };
 type Category = { id: string; code: string; nameAr: string; nameEn: string };
-type CatalogItem = { branchItemId: string; sku: string; barcode: string | null; imageAvailable: boolean; categoryId: string; nameAr: string; nameEn: string; nameUr: string };
+type CatalogItem = { branchItemId: string; sku: string; barcode: string | null; imageAvailable: boolean; imageUrl: string | null; categoryId: string; nameAr: string; nameEn: string; nameUr: string; baseUnit: { code: string; nameAr: string; nameEn: string } | null };
 type CatalogPage = { page: number; pageSize: number; total: number; data: CatalogItem[] };
 type ItemUnit = { id: string; code: string; nameAr: string; nameEn: string; isBaseUnit: boolean };
 type RequestLine = { id: string; branchItemId: string; itemId: string; itemUnitId: string; item: { nameAr: string; nameEn: string; nameUr: string }; sku: string; unit: { code: string; nameAr: string; nameEn: string }; requestedQuantity: string; lineStatus: "active" | "excluded"; addedAfterFirstSubmission: boolean };
@@ -34,15 +35,72 @@ function localized(value: { nameAr: string; nameEn: string; nameUr?: string | nu
 
 export function RequisitionPage({ online }: { online: boolean }) {
   const { i18n, t } = useTranslation();
-  const [branches, setBranches] = useState<Branch[]>([]); const [branchId, setBranchId] = useState(""); const [categories, setCategories] = useState<Category[]>([]); const [categoryId, setCategoryId] = useState(""); const [items, setItems] = useState<CatalogPage | null>(null); const [search, setSearch] = useState(""); const [page, setPage] = useState(1);
+  const [branches, setBranches] = useState<Branch[]>([]); const [branchId, setBranchId] = useState(""); const [categories, setCategories] = useState<Category[]>([]); const [categoryId, setCategoryId] = useState("all"); const [items, setItems] = useState<CatalogPage | null>(null); const [search, setSearch] = useState(""); const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<5 | 10 | 15>(() => {
+    if (typeof window === "undefined") return 10;
+    const saved = Number(window.localStorage.getItem("requisition.catalog.pageSize"));
+    return saved === 5 || saved === 15 ? saved : 10;
+  });
   const [request, setRequest] = useState<RequestDetail | null>(null); const [history, setHistory] = useState<RequestList | null>(null); const [activeTab, setActiveTab] = useState<"catalog" | "history">("catalog"); const [selection, setSelection] = useState<CatalogItem | null>(null); const [units, setUnits] = useState<ItemUnit[]>([]); const [unitId, setUnitId] = useState(""); const [quantity, setQuantity] = useState("1"); const [cartOpen, setCartOpen] = useState(false); const [confirmOpen, setConfirmOpen] = useState(false); const [editingLine, setEditingLine] = useState<RequestLine | null>(null); const [editUnits, setEditUnits] = useState<ItemUnit[]>([]); const [editUnitId, setEditUnitId] = useState(""); const [editQuantity, setEditQuantity] = useState(""); const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
 
-  const loadBranches = useCallback(async () => { if (!online) return; setLoading(true); try { setBranches(await api<Branch[]>("/api/v1/requisition/branches")); } catch (caught) { setError(message(caught, "تعذر تحميل بيانات الطلب.")); } finally { setLoading(false); } }, [online]);
+  const loadBranches = useCallback(async () => {
+    if (!online) return;
+    setLoading(true);
+    try {
+      const data = await api<Branch[]>("/api/v1/requisition/branches");
+      setBranches(data);
+      setBranchId((current) => data.some((branch) => branch.id === current) ? current : (data.length === 1 ? data[0]!.id : ""));
+    } catch (caught) {
+      setError(message(caught, "تعذر تحميل بيانات الطلب."));
+    } finally {
+      setLoading(false);
+    }
+  }, [online]);
   useEffect(() => { void loadBranches(); }, [loadBranches]);
-  const loadCategories = useCallback(async () => { if (!branchId || !online) return; try { setCategories(await api<Category[]>(`/api/v1/requisition/branches/${branchId}/categories`)); } catch (caught) { setError(message(caught, "تعذر تحميل بيانات الطلب.")); } }, [branchId, online]);
+
+  const loadCategories = useCallback(async () => {
+    if (!branchId || !online) return;
+    try {
+      const data = await api<Category[]>(`/api/v1/requisition/branches/${branchId}/categories`);
+      setCategories(data);
+      setCategoryId((current) => current === "all" || data.some((category) => category.id === current) ? current : "all");
+    } catch (caught) {
+      setError(message(caught, "تعذر تحميل بيانات الطلب."));
+    }
+  }, [branchId, online]);
   useEffect(() => { void loadCategories(); }, [loadCategories]);
-  const loadItems = useCallback(async () => { if (!branchId || !categoryId || !online) return; setLoading(true); try { const params = new URLSearchParams({ page: String(page), pageSize: "24" }); if (search.trim()) params.set("search", search.trim()); setItems(await api<CatalogPage>(`/api/v1/requisition/branches/${branchId}/categories/${categoryId}/items?${params}`)); } catch (caught) { setError(message(caught, "تعذر تحميل بيانات الطلب.")); } finally { setLoading(false); } }, [branchId, categoryId, online, page, search]);
+
+  const loadItems = useCallback(async () => {
+    if (!branchId || !categoryId || !online) return;
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (search.trim()) params.set("search", search.trim());
+      const path = categoryId === "all"
+        ? `/api/v1/requisition/branches/${branchId}/items?${params}`
+        : `/api/v1/requisition/branches/${branchId}/categories/${categoryId}/items?${params}`;
+      setItems(await api<CatalogPage>(path));
+    } catch (caught) {
+      setError(message(caught, "تعذر تحميل بيانات الطلب."));
+    } finally {
+      setLoading(false);
+    }
+  }, [branchId, categoryId, online, page, pageSize, search]);
   useEffect(() => { void loadItems(); }, [loadItems]);
+
+  const changeBranch = (nextBranchId: string) => {
+    setBranchId(nextBranchId);
+    setCategoryId("all");
+    setItems(null);
+    setRequest(null);
+    setPage(1);
+  };
+
+  const changePageSize = (next: 5 | 10 | 15) => {
+    setPageSize(next);
+    setPage(1);
+    if (typeof window !== "undefined") window.localStorage.setItem("requisition.catalog.pageSize", String(next));
+  };
   const loadHistory = useCallback(async () => { if (!online) return; try { setHistory(await api<RequestList>("/api/v1/requisitions?page=1&pageSize=30")); } catch (caught) { setError(message(caught, "تعذر تحميل بيانات الطلب.")); } }, [online]);
   useEffect(() => { if (activeTab === "history") void loadHistory(); }, [activeTab, loadHistory]);
   const createDraft = async () => { if (!branchId || !online) return null; setBusy(true); try { const detail = await mutation<RequestDetail>("/api/v1/requisitions", "POST", { branchId }); setRequest(detail); return detail; } catch (caught) { setError(message(caught, t("requisitionSaveFailed"))); return null; } finally { setBusy(false); } };
@@ -53,7 +111,9 @@ export function RequisitionPage({ online }: { online: boolean }) {
   const saveLineEdit = async () => { if (!request || !editingLine || !editUnitId || !online) return; setBusy(true); try { const result = await mutation<RequestDetail>(`/api/v1/requisitions/${request.id}/items/${editingLine.id}`, "PATCH", { branchItemId: editingLine.branchItemId, itemUnitId: editUnitId, requestedQuantity: editQuantity, expectedRowVersion: request.rowVersion }); setRequest(result); setEditingLine(null); } catch (caught) { setError(message(caught, t("requisitionSaveFailed"))); } finally { setBusy(false); } };
   const submit = async () => { if (!request || !online) return; setBusy(true); try { const endpoint = request.status === "returned" ? "resubmit" : "submit"; setRequest(await mutation<RequestDetail>(`/api/v1/requisitions/${request.id}/${endpoint}`, "POST", { expectedRowVersion: request.rowVersion })); setConfirmOpen(false); await loadHistory(); } catch (caught) { setError(message(caught, t("requisitionSubmitFailed"))); setConfirmOpen(false); } finally { setBusy(false); } };
   const activeLines = request?.items.filter((line) => line.lineStatus === "active") ?? [];
-  const pageCount = Math.max(1, Math.ceil((items?.total ?? 0) / 24));
+  const pageCount = Math.max(1, Math.ceil((items?.total ?? 0) / pageSize));
+  const singleBranch = branches.length === 1;
+  const selectedBranch = branches.find((branch) => branch.id === branchId) ?? null;
 
   return (
     <Box>
@@ -61,11 +121,146 @@ export function RequisitionPage({ online }: { online: boolean }) {
       {!online && <Alert severity="warning" sx={{ mb: 2 }}>{t("requisitionOffline")}</Alert>}
       {error && <Alert onClose={() => setError(null)} severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {activeTab === "history" ? <RequestHistory history={history} language={i18n.language} loading={loading} onOpen={async (id) => { try { setRequest(await api<RequestDetail>(`/api/v1/requisitions/${id}`)); setCartOpen(true); } catch (caught) { setError(message(caught, t("requisitionLoadFailed"))); } }} t={t} /> : <>
-        <SectionCard title={t("selectBranchAndCategory")}><Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) minmax(0, 1fr) auto" } }}><FormControl><InputLabel id="requisition-branch">{t("branch")}</InputLabel><Select label={t("branch")} labelId="requisition-branch" onChange={(event) => { setBranchId(event.target.value); setCategoryId(""); setItems(null); setPage(1); }} value={branchId}><MenuItem value="">{t("selectBranch")}</MenuItem>{branches.map((branch) => <MenuItem key={branch.id} value={branch.id}>{branch.code} · {localized({ nameAr: branch.nameAr, nameEn: branch.nameEn ?? branch.nameAr }, i18n.language)}</MenuItem>)}</Select></FormControl><TextField disabled={!branchId} label={t("searchCatalog")} onChange={(event) => { setPage(1); setSearch(event.target.value); }} value={search} /><Button disabled={!branchId || busy || !online} onClick={() => void createDraft()} startIcon={<AddShoppingCartOutlinedIcon />} variant="contained">{request ? t("draftReady") : t("startDraft")}</Button></Box></SectionCard>
-        {!branchId ? <Box sx={{ mt: 2 }}><SectionCard><EmptyState title={t("selectBranch")} message={t("selectBranchHint")} /></SectionCard></Box> : loading && !categories.length ? <LoadingState title={t("loadingTitle")} message={t("catalogLoading")} /> : <>
+        <SectionCard title={t("selectBranchAndCategory")}>
+          <Box sx={{ display: "grid", gap: 1.5 }}>
+            {!singleBranch && (
+              <FormControl>
+                <InputLabel id="requisition-branch">{t("branch")}</InputLabel>
+                <Select
+                  label={t("branch")}
+                  labelId="requisition-branch"
+                  onChange={(event) => changeBranch(event.target.value)}
+                  value={branchId}
+                >
+                  <MenuItem value="">{t("selectBranch")}</MenuItem>
+                  {branches.map((branch) => (
+                    <MenuItem key={branch.id} value={branch.id}>
+                      {branch.code} · {localized({ nameAr: branch.nameAr, nameEn: branch.nameEn ?? branch.nameAr }, i18n.language)}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+            {singleBranch && selectedBranch && (
+              <Alert icon={false} severity="info" sx={{ fontWeight: 800 }}>
+                {t("assignedBranch")}: {localized({ nameAr: selectedBranch.nameAr, nameEn: selectedBranch.nameEn ?? selectedBranch.nameAr }, i18n.language)}
+              </Alert>
+            )}
+            <TextField
+              disabled={!branchId}
+              label={t("searchCatalog")}
+              onChange={(event) => { setPage(1); setSearch(event.target.value); }}
+              value={search}
+            />
+          </Box>
+        </SectionCard>
+        {!branchId ? (
+          <Box sx={{ mt: 2 }}>
+            <SectionCard><EmptyState title={t("selectBranch")} message={t("selectBranchHint")} /></SectionCard>
+          </Box>
+        ) : loading && !categories.length ? (
+          <LoadingState title={t("loadingTitle")} message={t("catalogLoading")} />
+        ) : <>
           <Typography component="h2" sx={{ fontWeight: 800, mt: 3, mb: 1.5 }} variant="h6">{t("categories")}</Typography>
-          <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(3, minmax(0, 1fr))", lg: "repeat(5, minmax(0, 1fr))" } }}>{categories.map((category) => <Card key={category.id} variant={categoryId === category.id ? "elevation" : "outlined"} sx={{ borderColor: categoryId === category.id ? "primary.main" : undefined }}><CardActionArea onClick={() => { setPage(1); setCategoryId(category.id); }} sx={{ minHeight: 112 }}><CardContent><CategoryOutlinedIcon color="primary" /><Typography sx={{ fontWeight: 800, mt: 1 }}>{localized(category, i18n.language)}</Typography><Typography color="text.secondary" variant="caption">{category.code}</Typography></CardContent></CardActionArea></Card>)}</Box>
-          {categoryId && (loading ? <LoadingState title={t("loadingTitle")} message={t("catalogLoading")} /> : !items?.data.length ? <Box sx={{ mt: 2 }}><SectionCard><EmptyState title={t("catalogEmpty")} message={t("catalogEmptyHint")} /></SectionCard></Box> : <><Box sx={{ alignItems: "center", display: "flex", justifyContent: "space-between", mt: 3, mb: 1 }}><Typography component="h2" sx={{ fontWeight: 800 }} variant="h6">{t("items")}</Typography><Typography color="text.secondary" variant="body2">{t("records", { count: items.total })}</Typography></Box><Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))" } }}>{items.data.map((item) => <Card key={item.branchItemId} variant="outlined"><CardActionArea disabled={!online || busy} onClick={() => void choose(item)} sx={{ minHeight: 166 }}><CardContent sx={{ display: "grid", gap: 1 }}><Box sx={{ alignItems: "center", display: "flex", gap: 1 }}><Box sx={{ alignItems: "center", bgcolor: "primary.light", borderRadius: 2, color: "primary.main", display: "flex", height: 42, justifyContent: "center", width: 42 }}>{item.imageAvailable ? <ImageOutlinedIcon /> : <CategoryOutlinedIcon />}</Box><Box sx={{ minWidth: 0 }}><Typography noWrap sx={{ fontWeight: 800 }}>{localized(item, i18n.language)}</Typography><Typography color="text.secondary" variant="caption">{item.sku}</Typography></Box></Box><Chip color="primary" label={t("chooseQuantityUnit")} size="small" variant="outlined" /></CardContent></CardActionArea></Card>)}</Box><Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}><Pagination count={pageCount} onChange={(_, value) => setPage(value)} page={page} /></Box></>)}
+          <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(3, minmax(0, 1fr))", lg: "repeat(6, minmax(0, 1fr))" } }}>
+            <Card variant={categoryId === "all" ? "elevation" : "outlined"} sx={{ borderColor: categoryId === "all" ? "primary.main" : undefined }}>
+              <CardActionArea onClick={() => { setPage(1); setCategoryId("all"); }} sx={{ minHeight: 112 }}>
+                <CardContent sx={{ textAlign: "center" }}>
+                  <CategoryOutlinedIcon color="primary" fontSize="large" />
+                  <Typography sx={{ fontWeight: 900, mt: 1 }}>{t("allCategories")}</Typography>
+                </CardContent>
+              </CardActionArea>
+            </Card>
+            {categories.map((category) => (
+              <Card key={category.id} variant={categoryId === category.id ? "elevation" : "outlined"} sx={{ borderColor: categoryId === category.id ? "primary.main" : undefined }}>
+                <CardActionArea onClick={() => { setPage(1); setCategoryId(category.id); }} sx={{ minHeight: 112 }}>
+                  <CardContent sx={{ textAlign: "center" }}>
+                    <CategoryOutlinedIcon color="primary" fontSize="large" />
+                    <Typography sx={{ fontWeight: 900, mt: 1 }}>{localized(category, i18n.language)}</Typography>
+                    <Typography color="text.secondary" variant="caption">{category.code}</Typography>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
+            ))}
+          </Box>
+
+          <Box sx={{ alignItems: { xs: "stretch", sm: "center" }, display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1, justifyContent: "space-between", mt: 3, mb: 1.5 }}>
+            <Box>
+              <Typography component="h2" sx={{ fontWeight: 800 }} variant="h6">{t("items")}</Typography>
+              <Typography color="text.secondary" variant="body2">{t("records", { count: items?.total ?? 0 })}</Typography>
+            </Box>
+            <Box sx={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+              <Typography color="text.secondary" sx={{ fontWeight: 700 }} variant="body2">{t("itemsPerPage")}</Typography>
+              {([5, 10, 15] as const).map((size) => (
+                <Button
+                  key={size}
+                  onClick={() => changePageSize(size)}
+                  size="large"
+                  variant={pageSize === size ? "contained" : "outlined"}
+                  sx={{ minHeight: 48, minWidth: 58, fontWeight: 900 }}
+                >
+                  {size}
+                </Button>
+              ))}
+            </Box>
+          </Box>
+
+          {loading ? (
+            <LoadingState title={t("loadingTitle")} message={t("catalogLoading")} />
+          ) : !items?.data.length ? (
+            <SectionCard><EmptyState title={t("catalogEmpty")} message={t("catalogEmptyHint")} /></SectionCard>
+          ) : <>
+            <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(3, minmax(0, 1fr))", xl: "repeat(5, minmax(0, 1fr))" } }}>
+              {items.data.map((item) => (
+                <Card key={item.branchItemId} variant="outlined" sx={{ overflow: "hidden" }}>
+                  <CardActionArea
+                    disabled={!online || busy}
+                    onClick={() => void choose(item)}
+                    sx={{ height: "100%", minHeight: 250, display: "flex", flexDirection: "column", alignItems: "stretch" }}
+                  >
+                    <CatalogImage item={item} />
+                    <CardContent sx={{ display: "grid", gap: 0.75, width: "100%" }}>
+                      <Typography sx={{ fontSize: { xs: "0.95rem", md: "1.05rem" }, fontWeight: 900, lineHeight: 1.45 }}>
+                        {localized(item, i18n.language)}
+                      </Typography>
+                      <Typography color="text.secondary" variant="caption">{item.sku}</Typography>
+                      {item.baseUnit && (
+                        <Chip
+                          color="primary"
+                          label={`${t("baseUnit")}: ${localized({ nameAr: item.baseUnit.nameAr, nameEn: item.baseUnit.nameEn }, i18n.language)}`}
+                          size="small"
+                          variant="outlined"
+                        />
+                      )}
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
+              ))}
+            </Box>
+            <Box sx={{ alignItems: "center", display: "grid", gap: 1.5, gridTemplateColumns: "1fr auto 1fr", mt: 2.5 }}>
+              <Button
+                disabled={page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                size="large"
+                startIcon={<ArrowBackRoundedIcon />}
+                sx={{ justifySelf: "start", minHeight: 54, minWidth: { xs: 110, sm: 150 }, fontWeight: 900 }}
+                variant="outlined"
+              >
+                {t("previous")}
+              </Button>
+              <Typography sx={{ fontWeight: 900, whiteSpace: "nowrap" }}>{page} / {pageCount}</Typography>
+              <Button
+                disabled={page >= pageCount}
+                endIcon={<ArrowForwardRoundedIcon />}
+                onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                size="large"
+                sx={{ justifySelf: "end", minHeight: 54, minWidth: { xs: 110, sm: 150 }, fontWeight: 900 }}
+                variant="contained"
+              >
+                {t("next")}
+              </Button>
+            </Box>
+          </>}
         </>}
       </>}
       {selection && <QuantityDialog busy={busy} item={selection} language={i18n.language} onClose={() => setSelection(null)} onSave={() => void addLine()} quantity={quantity} setQuantity={setQuantity} setUnitId={setUnitId} t={t} unitId={unitId} units={units} />}
@@ -73,6 +268,27 @@ export function RequisitionPage({ online }: { online: boolean }) {
       {editingLine && <CartLineEditDialog busy={busy} language={i18n.language} line={editingLine} onClose={() => setEditingLine(null)} onSave={() => void saveLineEdit()} quantity={editQuantity} setQuantity={setEditQuantity} setUnitId={setEditUnitId} t={t} unitId={editUnitId} units={editUnits} />}
       {confirmOpen && <Dialog fullWidth maxWidth="xs" onClose={() => setConfirmOpen(false)} open><DialogTitle>{t(request?.status === "returned" ? "confirmResubmit" : "confirmSubmit")}</DialogTitle><DialogContent><Typography>{t("submitNotice")}</Typography></DialogContent><DialogActions><Button onClick={() => setConfirmOpen(false)}>{t("cancel")}</Button><BusyButton busy={busy} onClick={() => void submit()} variant="contained">{t(request?.status === "returned" ? "resubmit" : "submit")}</BusyButton></DialogActions></Dialog>}
     </Box>
+  );
+}
+
+function CatalogImage({ item }: { item: CatalogItem }) {
+  const [failed, setFailed] = useState(false);
+  if (!item.imageUrl || failed) {
+    return (
+      <Box sx={{ alignItems: "center", bgcolor: "action.hover", display: "flex", height: 150, justifyContent: "center", width: "100%" }}>
+        <CategoryOutlinedIcon color="disabled" sx={{ fontSize: 64 }} />
+      </Box>
+    );
+  }
+  return (
+    <Box
+      alt=""
+      component="img"
+      loading="lazy"
+      onError={() => setFailed(true)}
+      src={item.imageUrl}
+      sx={{ display: "block", height: 150, objectFit: "cover", width: "100%" }}
+    />
   );
 }
 

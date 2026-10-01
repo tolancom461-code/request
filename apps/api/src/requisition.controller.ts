@@ -17,6 +17,7 @@ export class RequisitionController {
 
   @Get("requisition/branches") branches(@Req() request: RequestWithSession) { return this.requisitions.branches(this.user(request)); }
   @Get("requisition/branches/:branchId/categories") categories(@Req() request: RequestWithSession, @Param("branchId") branchId: string) { return this.requisitions.categories(this.user(request), id.parse(branchId)); }
+  @Get("requisition/branches/:branchId/items") allItems(@Req() request: RequestWithSession, @Param("branchId") branchId: string, @Query() query: unknown) { return this.requisitions.catalogItems(this.user(request), id.parse(branchId), undefined, list.parse(query)); }
   @Get("requisition/branches/:branchId/categories/:categoryId/items") items(@Req() request: RequestWithSession, @Param("branchId") branchId: string, @Param("categoryId") categoryId: string, @Query() query: unknown) { return this.requisitions.catalogItems(this.user(request), id.parse(branchId), id.parse(categoryId), list.parse(query)); }
   @Get("requisition/branch-items/:branchItemId/units") units(@Req() request: RequestWithSession, @Param("branchItemId") branchItemId: string) { return this.requisitions.units(this.user(request), id.parse(branchItemId)); }
 

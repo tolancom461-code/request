@@ -5,6 +5,7 @@ import { BranchScopeService } from "./security.js";
 import { PrimarySupplierTemporalService } from "./primary-supplier-temporal.service.js";
 import { RequestLinePreparationService } from "./request-line-preparation.service.js";
 import { RequestSubmissionService } from "./request-submission.service.js";
+import { StorageService } from "./storage.service.js";
 
 type Tx = Prisma.TransactionClient;
 type ListInput = { page: number; pageSize: number; search?: string };
@@ -21,6 +22,7 @@ export class RequisitionService {
     @Inject(PrimarySupplierTemporalService) private readonly primaries: PrimarySupplierTemporalService,
     @Inject(RequestLinePreparationService) private readonly lines: RequestLinePreparationService,
     @Inject(RequestSubmissionService) private readonly submissions: RequestSubmissionService,
+    @Inject(StorageService) private readonly storage: StorageService,
   ) {}
 
   private async assertBranch(userId: string, branchId: string) {
@@ -77,17 +79,27 @@ export class RequisitionService {
     return [...categories.values()].sort((a, b) => a.nameAr.localeCompare(b.nameAr)).map((category) => ({ id: category.id, code: category.code, nameAr: category.nameAr, nameEn: category.nameEn ?? category.nameAr }));
   }
 
-  async catalogItems(userId: string, branchId: string, categoryId: string, input: ListInput) {
+  async catalogItems(userId: string, branchId: string, categoryId: string | undefined, input: ListInput) {
     await this.assertBranch(userId, branchId);
     const all = await this.requestableBranchItems(branchId, categoryId, input.search);
     const start = (input.page - 1) * input.pageSize;
-    const data = all.slice(start, start + input.pageSize).map((row) => ({
-      branchItemId: row.id,
-      sku: row.item.sku,
-      barcode: row.item.barcode,
-      imageAvailable: Boolean(row.item.imageObjectKey),
-      categoryId: row.item.categoryId,
-      ...this.localized(row.item),
+    const pageRows = all.slice(start, start + input.pageSize);
+    const data = await Promise.all(pageRows.map(async (row) => {
+      const baseUnit = row.item.itemUnits.find((entry) => entry.isBaseUnit) ?? row.item.itemUnits[0];
+      return {
+        branchItemId: row.id,
+        sku: row.item.sku,
+        barcode: row.item.barcode,
+        imageAvailable: Boolean(row.item.imageObjectKey),
+        imageUrl: row.item.imageObjectKey ? await this.storage.signedItemImageUrl(row.item.imageObjectKey) : null,
+        categoryId: row.item.categoryId,
+        baseUnit: baseUnit ? {
+          code: baseUnit.unit.code,
+          nameAr: baseUnit.unit.nameAr,
+          nameEn: baseUnit.unit.nameEn ?? baseUnit.unit.nameAr,
+        } : null,
+        ...this.localized(row.item),
+      };
     }));
     return { page: input.page, pageSize: input.pageSize, total: all.length, data };
   }
