@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.pnpm-store/
+prisma/*.db
+evidence/*.json
+.project-config.json
+.env

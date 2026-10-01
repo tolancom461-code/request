@@ -1,0 +1,54 @@
+{
+  "name": "restaurant-branch-requisition",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.4.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names api,web --prefix-colors cyan,green \"pnpm dev:api\" \"pnpm dev:web\"",
+    "dev:web": "pnpm --filter @restaurant/web dev",
+    "dev:api": "pnpm --filter @restaurant/api dev",
+    "build": "pnpm run db:generate && pnpm --filter @restaurant/shared build && pnpm --filter @restaurant/api build && pnpm run stage:api-runtime && pnpm --filter @restaurant/web build && pnpm run stage:web-public",
+    "check": "pnpm --filter @restaurant/shared check && pnpm --filter @restaurant/api check && pnpm --filter @restaurant/web check",
+    "test": "vitest run --config tests/vitest.config.ts",
+    "test:watch": "vitest --config tests/vitest.config.ts",
+    "db:generate": "pnpm exec prisma generate --schema prisma/schema.prisma",
+    "db:migrate": "node scripts/run-prisma-with-tls.mjs migrate deploy --schema prisma/schema.prisma",
+    "db:seed": "tsx scripts/seed-system.ts",
+    "db:parity": "tsx scripts/validate-database-parity.ts",
+    "db:parity:direct": "node scripts/prisma-schema-direct-parity.mjs",
+    "stage:web-public": "node scripts/stage-web-public.mjs",
+    "stage:api-runtime": "node scripts/stage-api-runtime.mjs"
+  },
+  "prisma": {
+    "seed": "tsx scripts/seed-system.ts"
+  },
+  "devDependencies": {
+    "@prisma/client": "6.19.3",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.6",
+    "@types/node": "^22.10.2",
+    "@types/supertest": "^6.0.2",
+    "argon2": "0.41.1",
+    "concurrently": "^10.0.5",
+    "jsdom": "^30.0.1",
+    "prisma": "^6.2.1",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "argon2",
+      "esbuild",
+      "prisma"
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-labelledby="title">
+  <title>Restaurant Branch Requisition</title>
+  <rect width="192" height="192" rx="42" fill="#0f766e"/>
+  <path d="M56 49h80v94H56z" fill="#ecfdf5"/>
+  <path d="M75 78h43M75 98h43M75 118h27" stroke="#0f766e" stroke-width="9" stroke-linecap="round"/>
+  <circle cx="132" cy="132" r="27" fill="#fbbf24"/>
+  <path d="m120 132 8 8 16-18" fill="none" stroke="#0f766e" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

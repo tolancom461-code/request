@@ -1,0 +1,382 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum RecordStatus {
+  active
+  inactive
+}
+
+enum RequestStatus {
+  draft
+  pending_approval
+  returned
+  rejected
+  approved
+  sent_to_warehouse
+  preparing
+  ready
+  dispatched
+  completed
+}
+
+enum RequestLineStatus {
+  active
+  excluded
+}
+
+enum ActorType {
+  user
+  system
+}
+
+enum ApprovalDecision {
+  approved
+  returned
+  rejected
+}
+
+model User {
+  id                String             @id @default(uuid()) @db.Char(36)
+  username          String             @unique @db.VarChar(100)
+  email             String?            @unique @db.VarChar(320)
+  passwordHash      String?            @map("password_hash") @db.VarChar(255)
+  status            RecordStatus       @default(active)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt         DateTime?          @map("deleted_at") @db.DateTime(3)
+  roles             UserRole[]
+  branchScopes      UserBranchScope[]
+  createdRequests   RequestRecord[]    @relation("RequestCreator")
+  approvals         RequestApproval[]  @relation("ApprovalActor")
+  addedRequestItems RequestItem[]      @relation("RequestItemAddedBy")
+  removedRequestItems RequestItem[]    @relation("RequestItemRemovedBy")
+  statusHistory     RequestStatusHistory[] @relation("StatusHistoryUserActor")
+  auditLogs         AuditLog[]         @relation("AuditUserActor")
+  notifications     Notification[]
+  sessions          ServerSession[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Char(36)
+  code        String           @unique @db.VarChar(100)
+  name        String           @db.VarChar(150)
+  description String?          @db.VarChar(500)
+  userRoles   UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Char(36)
+  code        String           @unique @db.VarChar(120)
+  name        String           @db.VarChar(150)
+  description String?          @db.VarChar(500)
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String @map("user_id") @db.Char(36)
+  roleId String @map("role_id") @db.Char(36)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.Char(36)
+  permissionId String     @map("permission_id") @db.Char(36)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model Branch {
+  id          String            @id @default(uuid()) @db.Char(36)
+  code        String            @unique @db.VarChar(50)
+  nameAr      String            @map("name_ar") @db.VarChar(200)
+  nameEn      String            @map("name_en") @db.VarChar(200)
+  status      RecordStatus      @default(active)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.DateTime(3)
+  branchItems BranchItem[]
+  requests    RequestRecord[]
+  scopes      UserBranchScope[]
+
+  @@map("branches")
+}
+
+model UserBranchScope {
+  userId   String @map("user_id") @db.Char(36)
+  branchId String @map("branch_id") @db.Char(36)
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([userId, branchId])
+  @@index([branchId])
+  @@map("user_branch_scopes")
+}
+
+model Supplier {
+  id           String       @id @default(uuid()) @db.Char(36)
+  supplierCode String       @unique @map("supplier_code") @db.VarChar(80)
+  supplierName String       @map("supplier_name") @db.VarChar(200)
+  taxNumber    String?      @unique @map("tax_number") @db.VarChar(100)
+  status       RecordStatus @default(active)
+  deletedAt    DateTime?    @map("deleted_at") @db.DateTime(3)
+  relations    BranchItemSupplier[]
+  snapshots    RequestItem[] @relation("RequestItemSupplierSnapshot")
+
+  @@map("suppliers")
+}
+
+model Unit {
+  id       String       @id @default(uuid()) @db.Char(36)
+  code     String       @unique @db.VarChar(40)
+  nameAr   String       @map("name_ar") @db.VarChar(100)
+  nameEn   String?      @map("name_en") @db.VarChar(100)
+  status   RecordStatus @default(active)
+  itemUnits ItemUnit[]
+
+  @@map("units")
+}
+
+model Category {
+  id        String       @id @default(uuid()) @db.Char(36)
+  code      String       @unique @db.VarChar(50)
+  nameAr    String       @map("name_ar") @db.VarChar(200)
+  nameEn    String?      @map("name_en") @db.VarChar(200)
+  status    RecordStatus @default(active)
+  deletedAt DateTime?    @map("deleted_at") @db.DateTime(3)
+  items     Item[]
+
+  @@map("categories")
+}
+
+model Item {
+  id             String       @id @default(uuid()) @db.Char(36)
+  sku            String       @unique @db.VarChar(80)
+  barcode        String?      @unique @db.VarChar(120)
+  categoryId     String       @map("category_id") @db.Char(36)
+  nameAr         String       @map("name_ar") @db.VarChar(250)
+  nameEn         String?      @map("name_en") @db.VarChar(250)
+  nameUr         String?      @map("name_ur") @db.VarChar(250)
+  imageObjectKey String?      @map("image_object_key") @db.VarChar(500)
+  status         RecordStatus @default(active)
+  deletedAt      DateTime?    @map("deleted_at") @db.DateTime(3)
+  category       Category     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  itemUnits      ItemUnit[]
+  branchItems    BranchItem[]
+  snapshots      RequestItem[] @relation("RequestItemItemSnapshot")
+
+  @@index([categoryId])
+  @@map("items")
+}
+
+model ItemUnit {
+  id                     String       @id @default(uuid()) @db.Char(36)
+  itemId                 String       @map("item_id") @db.Char(36)
+  unitId                 String       @map("unit_id") @db.Char(36)
+  conversionFactorToBase Decimal      @map("conversion_factor_to_base") @db.Decimal(18, 6)
+  isBaseUnit             Boolean      @default(false) @map("is_base_unit")
+  status                 RecordStatus @default(active)
+  activeBaseItemId       String?      @unique @map("active_base_item_id") @db.Char(36)
+  item                   Item         @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  unit                   Unit         @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  snapshots              RequestItem[] @relation("RequestItemUnitSnapshot")
+
+  @@unique([itemId, unitId])
+  @@index([itemId, status])
+  @@index([unitId])
+  @@map("item_units")
+}
+
+model BranchItem {
+  id        String       @id @default(uuid()) @db.Char(36)
+  branchId  String       @map("branch_id") @db.Char(36)
+  itemId    String       @map("item_id") @db.Char(36)
+  status    RecordStatus @default(active)
+  deletedAt DateTime?    @map("deleted_at") @db.DateTime(3)
+  branch    Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  item      Item         @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  suppliers BranchItemSupplier[]
+  snapshots RequestItem[] @relation("RequestItemBranchItemSnapshot")
+
+  @@unique([branchId, itemId])
+  @@index([itemId])
+  @@map("branch_items")
+}
+
+model BranchItemSupplier {
+  id           String       @id @default(uuid()) @db.Char(36)
+  branchItemId String       @map("branch_item_id") @db.Char(36)
+  supplierId   String       @map("supplier_id") @db.Char(36)
+  isPrimary    Boolean      @default(false) @map("is_primary")
+  status       RecordStatus @default(active)
+  activePrimaryBranchItemId String?   @unique @map("active_primary_branch_item_id") @db.Char(36)
+  effectiveFrom DateTime    @map("effective_from") @db.Date
+  effectiveTo   DateTime?   @map("effective_to") @db.Date
+  branchItem   BranchItem   @relation(fields: [branchItemId], references: [id], onDelete: Restrict)
+  supplier     Supplier     @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  snapshots    RequestItem[] @relation("RequestItemSupplierRelationSnapshot")
+
+  @@unique([branchItemId, supplierId])
+  @@index([branchItemId, status, isPrimary])
+  @@index([supplierId])
+  @@map("branch_item_suppliers")
+}
+
+model RequestRecord {
+  id                   String        @id @default(uuid()) @db.Char(36)
+  requestNumber        String        @unique @map("request_number") @db.VarChar(80)
+  branchId             String        @map("branch_id") @db.Char(36)
+  createdByUserId      String        @map("created_by_user_id") @db.Char(36)
+  status               RequestStatus @default(draft)
+  rowVersion           Int           @default(1) @map("row_version")
+  submittedAt          DateTime?     @map("submitted_at") @db.DateTime(3)
+  approvedAt           DateTime?     @map("approved_at") @db.DateTime(3)
+  warehouseAvailableAt DateTime?     @map("warehouse_available_at") @db.DateTime(3)
+  createdAt            DateTime      @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt            DateTime      @updatedAt @map("updated_at") @db.DateTime(3)
+  branch               Branch        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  createdBy            User          @relation("RequestCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items                RequestItem[]
+  approvals            RequestApproval[]
+  statusHistory        RequestStatusHistory[]
+
+  @@index([branchId, status])
+  @@index([createdByUserId, status])
+  @@map("requests")
+}
+
+model RequestItem {
+  id                            String            @id @default(uuid()) @db.Char(36)
+  requestId                     String            @map("request_id") @db.Char(36)
+  branchItemIdSnapshot          String            @map("branch_item_id_snapshot") @db.Char(36)
+  itemIdSnapshot                String            @map("item_id_snapshot") @db.Char(36)
+  itemUnitIdSnapshot            String            @map("item_unit_id_snapshot") @db.Char(36)
+  branchItemSupplierIdSnapshot  String            @map("branch_item_supplier_id_snapshot") @db.Char(36)
+  supplierIdSnapshot            String            @map("supplier_id_snapshot") @db.Char(36)
+  supplierCodeSnapshot          String            @map("supplier_code_snapshot") @db.VarChar(80)
+  supplierNameSnapshot          String            @map("supplier_name_snapshot") @db.VarChar(200)
+  requestedQuantity             Decimal           @map("requested_quantity") @db.Decimal(18, 6)
+  conversionFactorSnapshot      Decimal           @map("conversion_factor_snapshot") @db.Decimal(18, 6)
+  baseQuantitySnapshot          Decimal           @map("base_quantity_snapshot") @db.Decimal(18, 6)
+  lineStatus                    RequestLineStatus @default(active) @map("line_status")
+  addedAfterFirstSubmission     Boolean           @default(false) @map("added_after_first_submission")
+  addedByUserId                 String?           @map("added_by_user_id") @db.Char(36)
+  addedAt                       DateTime?         @map("added_at") @db.DateTime(3)
+  removedByUserId               String?           @map("removed_by_user_id") @db.Char(36)
+  removedAt                     DateTime?         @map("removed_at") @db.DateTime(3)
+  removalReason                 String?           @map("removal_reason") @db.VarChar(500)
+  request                       RequestRecord     @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  branchItemSnapshot            BranchItem        @relation("RequestItemBranchItemSnapshot", fields: [branchItemIdSnapshot], references: [id], onDelete: Restrict)
+  itemSnapshot                  Item              @relation("RequestItemItemSnapshot", fields: [itemIdSnapshot], references: [id], onDelete: Restrict)
+  itemUnitSnapshot              ItemUnit          @relation("RequestItemUnitSnapshot", fields: [itemUnitIdSnapshot], references: [id], onDelete: Restrict)
+  supplierRelationSnapshot      BranchItemSupplier @relation("RequestItemSupplierRelationSnapshot", fields: [branchItemSupplierIdSnapshot], references: [id], onDelete: Restrict)
+  supplierSnapshot              Supplier          @relation("RequestItemSupplierSnapshot", fields: [supplierIdSnapshot], references: [id], onDelete: Restrict)
+  addedBy                       User?             @relation("RequestItemAddedBy", fields: [addedByUserId], references: [id], onDelete: SetNull)
+  removedBy                     User?             @relation("RequestItemRemovedBy", fields: [removedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([requestId, lineStatus])
+  @@index([branchItemIdSnapshot])
+  @@index([itemIdSnapshot])
+  @@index([itemUnitIdSnapshot])
+  @@index([branchItemSupplierIdSnapshot])
+  @@index([supplierIdSnapshot])
+  @@index([addedByUserId])
+  @@index([removedByUserId])
+  @@map("request_items")
+}
+
+model RequestApproval {
+  id          String           @id @default(uuid()) @db.Char(36)
+  requestId   String           @map("request_id") @db.Char(36)
+  actorUserId String           @map("actor_user_id") @db.Char(36)
+  decision    ApprovalDecision
+  comment     String?          @db.VarChar(1000)
+  decidedAt   DateTime         @default(now()) @map("decided_at") @db.DateTime(3)
+  request     RequestRecord    @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  actor       User             @relation("ApprovalActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([requestId, decidedAt])
+  @@index([actorUserId])
+  @@map("request_approvals")
+}
+
+model RequestStatusHistory {
+  id          String        @id @default(uuid()) @db.Char(36)
+  requestId   String        @map("request_id") @db.Char(36)
+  actorType   ActorType     @map("actor_type")
+  actorUserId String?       @map("actor_user_id") @db.Char(36)
+  fromStatus  RequestStatus? @map("from_status")
+  toStatus    RequestStatus @map("to_status")
+  reason      String?       @db.VarChar(1000)
+  occurredAt  DateTime      @default(now()) @map("occurred_at") @db.DateTime(3)
+  request     RequestRecord @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  actorUser   User?         @relation("StatusHistoryUserActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([requestId, occurredAt])
+  @@index([actorUserId])
+  @@map("request_status_history")
+}
+
+model AuditLog {
+  id          String      @id @default(uuid()) @db.Char(36)
+  actorType   ActorType   @map("actor_type")
+  actorUserId String?     @map("actor_user_id") @db.Char(36)
+  entityType  String      @map("entity_type") @db.VarChar(100)
+  entityId    String      @map("entity_id") @db.Char(36)
+  action      String      @db.VarChar(120)
+  beforeData  Json?       @map("before_data")
+  afterData   Json?       @map("after_data")
+  occurredAt  DateTime    @default(now()) @map("occurred_at") @db.DateTime(3)
+  actorUser   User?       @relation("AuditUserActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, occurredAt])
+  @@index([actorUserId])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id              String   @id @default(uuid()) @db.Char(36)
+  recipientUserId String   @map("recipient_user_id") @db.Char(36)
+  type            String   @db.VarChar(120)
+  payload         Json
+  readAt          DateTime? @map("read_at") @db.DateTime(3)
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  recipient       User     @relation(fields: [recipientUserId], references: [id], onDelete: Restrict)
+
+  @@index([recipientUserId, readAt])
+  @@map("notifications")
+}
+
+model ServerSession {
+  id        String   @id @db.Char(36)
+  userId    String   @map("user_id") @db.Char(36)
+  csrfToken String   @map("csrf_token") @db.Char(36)
+  createdAt DateTime @map("created_at") @db.DateTime(3)
+  lastSeenAt DateTime @map("last_seen_at") @db.DateTime(3)
+  expiresAt DateTime @map("expires_at") @db.DateTime(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("server_sessions")
+}

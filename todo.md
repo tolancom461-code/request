@@ -1,0 +1,238 @@
+# Project TODO — Phase 2A Technical Foundation
+
+- [x] Replace the template runtime with an npm-workspaces monorepo containing one React/Vite web app, one NestJS/Fastify API app, shared types, Prisma, scripts, documentation, and tests.
+- [x] Resolve the PostgreSQL schema requirement through the documented user-approved MySQL/TiDB exception; no PostgreSQL schema was implemented.
+- [x] Deliver and apply a reproducible reviewed MySQL/TiDB migration, while documenting that database triggers and enforceable CHECK behavior are unavailable in the current engine.
+- [x] Resolve the local PostgreSQL/Redis environment requirement through the MySQL/TiDB exception and validate local Redis for development sessions.
+- [x] Implement a database integrity manifest, schema/database parity script, and parity report with zero unexplained drift.
+- [x] Implement deterministic system-role and permission seeding without fake production business data.
+- [x] Implement NestJS/Fastify configuration, health/readiness, structured logging, error handling, Zod validation, and REST `/api/v1` structure.
+- [x] Implement server-side Redis sessions, Argon2id authentication, login/logout/current-user endpoints, secure cookie behavior, and session invalidation.
+- [x] Implement backend RBAC and branch-scope guards with authorization test endpoints only; do not implement operational business modules.
+- [x] Implement CSRF, secure headers, validated same-origin CORS policy, rate limiting, and safe error responses.
+- [x] Implement the first-submission transaction service and database-integrity tests for snapshots, units, historical deletion, actor model, and atomicity.
+- [x] Implement the S3-compatible storage configuration abstraction without image-management UI or frontend secrets; production object-store credentials and an end-to-end storage test remain explicitly out of Phase 2A.
+- [x] Implement React/Vite technical shell marked "TEMPORARY TECHNICAL SHELL — NOT FINAL UI", routing, environment API configuration, connectivity foundation, and API health communication.
+- [x] Implement PWA manifest, temporary technical icons, Service Worker static-cache policy, update detection, and explicit no-background-sync/no-mutation-queue configuration.
+- [x] Implement Arabic, English, and Urdu i18n with RTL/LTR direction validation.
+- [x] Execute required builds, TypeScript checks, migrations, parity checks, integration/database/security/PWA/i18n/health tests and record factual results.
+- [x] Create all required Phase 2A implementation, integrity, parity, PWA, environment, and test-result documentation.
+- [x] Create PHASE_2A_IMPLEMENTATION_REPORT.md with factual implementation, test, mock, deployment, and acceptance status.
+- [x] Package all Phase 2A reports, evidence, source migrations, and documentation in a single ZIP file; Phase 2B was not started.
+- [x] Record the user-approved MySQL exception to the Phase 1 PostgreSQL decision in implementation documentation and the final report.
+- [x] Adapt the Prisma schema, version-controlled migrations, integrity manifest, parity validator, and tests to MySQL/TiDB; the unavoidable database-trigger/CHECK limitation is documented rather than represented as an approved-equivalent guarantee.
+- [x] Review PHASE_2A_FINAL_CORRECTION_TIDB.pdf completely and map every new acceptance requirement to a verified implementation or disclosed limitation.
+- [x] Correct the production build failure caused by unavailable Prisma-generated client exports, validate generated-client availability in a clean dependency installation, and retain strict TypeScript compilation.
+- [x] Apply any additional Phase 2A correction requirements without starting Phase 2B business modules.
+- [x] Re-run production build, database parity, integration/security/PWA tests, and production-readiness checks; record factual results.
+- [x] Create a final Phase 2A TiDB correction report and deliver all new reports and files in a single ZIP package.
+- [x] Create docs/PHASE_1_FINAL_ARCHITECTURE_V1_3_TIDB.md as the authoritative TiDB architecture, and mark the V1.2 predecessor superseded without deleting history.
+- [x] Create docs/PHASE_2A_TIDB_FINAL_DECISION.md and mark the legacy MySQL exception document superseded.
+- [x] Update the current database integrity manifest, capability evidence, technical-foundation, parity, PWA, and environment documents to TiDB-final terminology and actual enforcement status.
+- [x] Add remaining representative direct TiDB FK tests for Request Item → Request and supplier-snapshot relations, using development-only clearly marked test data.
+- [x] Create the complete final acceptance test matrix accounting for every Phase 2A/correction requirement with executed, failed, and permitted not-executed status.
+- [x] Execute and document migration reproducibility validation to the fullest extent permitted by the managed TiDB credential, including exact limitation evidence if a clean database cannot be created.
+- [x] Create PHASE_2A_FINAL_CORRECTION_REPORT.md with the exact TiDB contract statuses, final acceptance decision, test counts, known issues, and placeholder audit.
+- [x] Package the corrected repository and all required Phase 2A TiDB evidence in a final ZIP artifact.
+- [x] Expand the final acceptance matrix to one explicit row for every original and TiDB-correction contract requirement, preserving grouped test evidence only as supporting detail.
+- [x] Revise the final correction report to map every numbered TiDB contract requirement to status, exact implementation, files, evidence, and test IDs.
+- [x] Complete a final repository-consistency pass that distinguishes retained superseded history from active documents/code and records the result as evidence.
+- [x] Review document(36).pdf completely and map every new requirement to verified implementation, a disclosed limitation, or a question for the user.
+- [x] Diagnose and correct the production startup failure for missing `/usr/src/app/dist/index.js`, then verify the deployment runtime entrypoint and startup port contract.
+- [x] Implement all in-scope corrections from document(36).pdf without beginning a subsequent project phase.
+- [x] Execute factual build, runtime, deployment-readiness, and document-specific acceptance checks, then record the results.
+- [x] Create the document(36) implementation report and deliver all resulting artifacts in one ZIP package. **The package is explicitly labeled BLOCKED because fresh TiDB migration proof is unavailable.**
+- [x] Store the supplied TiDB clean-target connection only as a project secret and verify TLS connectivity without writing credentials to source or evidence.
+- [x] Repair the audit-log migration chain in a Prisma/TiDB-safe, source-controlled manner and verify source checksum/history consistency on the current database.
+- [x] Apply the authoritative migration chain from zero to the clean TiDB target with no manual SQL between migrations, then run validate, generate, status, and fresh parity.
+- [x] Execute a disposable-target parity negative control, prove non-zero exit, and restore the clean target.
+- [x] Re-run Phase 2A regression tests/build, update the exact closeout report, and deliver an updated ZIP package without starting Phase 2B.
+- [x] Create a temporary non-system TiDB application database under the supplied account, update the isolated-target secret, and prove it starts without application tables before fresh migration.
+- [x] Deliver the final TiDB closeout ZIP to the user with the updated acceptance status and report reference.
+- [x] Resolve the Phase 2B interpretation of document(37).pdf as superseded: the document is an explicit Phase 2A final-closeout contract and prohibits Phase 2B.
+- [x] Review document(37).pdf completely and map every Phase 2A final-closeout requirement to verified implementation, explicit limitation, or clarification need.
+- [x] Archive experimental checksum-reconciliation migrations outside `prisma/migrations/`, create a canonical clean TiDB baseline and `migration_lock.toml`, and preserve development database without reset.
+- [x] Implement independent direct Prisma schema-to-TiDB structural parity using a Prisma-supported diff, alongside retained migration-derived parity.
+- [x] Replay the canonical baseline on the clean TiDB target; run validate/generate/status, both parity gates, direct-parity negative control, restored parity, and migration-table manipulation search.
+- [x] Run regression/build checks, update all mandatory Phase 2A closeout documents, create exactly PHASE_2A_FINAL_CLOSEOUT_REPORT.md, and create its ZIP package without starting Phase 2B.
+- [x] Send the final Phase 2A canonical TiDB closeout ZIP and checkpoint reference to the user.
+- [x] Verify the delivery message explicitly states the canonical Phase 2A closeout status and references `PHASE_2A_FINAL_CLOSEOUT_REPORT.md`.
+- [x] Review document(38).pdf completely and map every requirement to verified implementation, an explicit limitation, or a clarification need.
+- [x] Implement only the presentation artifacts expressly authorized by document(38).pdf, without reopening accepted work outside its scope.
+- [x] Execute document-specific acceptance checks, update factual documentation, and create the resulting report and ZIP package.
+- [x] Send the Phase 2B selection ZIP to the owner and request an explicit `T# + I#` selection without starting Phase 2C.
+- [x] Reframe Phase 2B for the owner as a chat-first decision flow: feature plan, visual-style choices, and optional product choices before implementation.
+- [x] Present concise style choices using the owner-requested language (for example: professional, lagom, asymmetric Swiss, editorial, structural, tactile) without selecting a winner.
+- [x] Request the owner’s explicit style and optional-choice response, then wait without starting Phase 2C.
+- [x] Record the owner’s selected Phase 2C visual direction: S5 structural, adapted from blue to a coffee-toned palette.
+- [x] Record the owner’s density preference (comfortable or compact) before beginning any Phase 2C implementation.
+- [x] Record the owner’s density preference: comfortable.
+- [x] Phase 2C remains **NOT STARTED / AWAITING EXPLICIT OWNER AUTHORIZATION**; no Phase 2C implementation was executed.
+- [x] Review document(39).pdf completely and map every requirement to verified implementation, an explicit limitation, or a clarification need.
+- [x] Implement only the modules and corrections expressly authorized by document(39).pdf without advancing an unapproved project phase.
+- [x] Execute document-specific acceptance checks, update factual documentation, and create the resulting report and ZIP package.
+- [x] Create an isolated preview-only workspace with its own package manifest and lockfile for Flowbite React, Mantine Core, and Material UI; do not add candidate dependencies to the authoritative app workspace.
+- [x] Render T1, T2, and T3 using real imported library components under one neutral identity, including the required requisition and multilingual/tablet surfaces.
+- [x] Create I1, I2, and I3 identity boards from one common non-template skeleton, with only identity tokens changing.
+- [x] Capture grouped template and identity screenshots, document imports/component mappings/RTL setup/versions/risks, and disclose the Flowbite React 0.12.17 pre-release warning.
+- [x] Verify preview isolation, build/run validation, and no Phase 2C implementation.
+- [x] Create the corrected Phase 2B C1 owner-selection ZIP, validate its contents and integrity, then reference it from the C1 report and the blank `T# + I#` decision artifact.
+- [x] Save the final C1 checkpoint and prepare delivery of the corrected owner-selection ZIP without selecting T# or I# or starting Phase 2C.
+- [x] Review document(40).pdf completely and map every requirement to a verified implementation, explicit limitation, or clarification need.
+- [x] Implement only the scope explicitly authorized by document(40).pdf without starting an unapproved project phase.
+- [x] Execute document(40)-specific validation, prepare the factual report, and create all resulting artifacts in one ZIP package.
+- [x] Capture equivalent section-mode neutral owner-facing screenshots for T1, T2, and T3 from the existing C1 preview lab, visibly covering all required A–L surfaces.
+- [x] Capture an equivalent quantity-and-unit modal/dialog image for T1, T2, and T3 from the existing C1 preview lab.
+- [x] Reuse unchanged I1/I2/I3 identity-board evidence without binding any identity to a template.
+- [x] Inspect each final delivered image visually, then create `phase2b/C2_SCREENSHOT_MANIFEST.md` and C2 visual-validation evidence based on pixel content.
+- [x] Create and integrity-validate the C2-only ZIP package without unrelated Phase 2A evidence, final selection, or Phase 2C work.
+- [x] Save the C2 closeout checkpoint and prepare delivery of the C2-only ZIP without selecting T# or I# or starting Phase 2C.
+- [x] Read document(41).pdf completely and map every requirement to a verified implementation, explicit limitation, or clarification need.
+- [x] Implement only the scope explicitly authorized by document(41).pdf without starting an unapproved project phase.
+- [x] Create a unified archive containing the required report, documentation, and full safe project source while excluding secrets, dependencies, and regenerable build artifacts.
+- [x] Validate the unified archive contents and integrity with secret scanning and `unzip -t`; prepare delivery with the document(41) report.
+- [x] Audit the authoritative production frontend, auth, localization, PWA, routes, and dependency state before modifying Phase 2C source. Planned code changes are limited to `apps/web/package.json`, `apps/web/src/main.tsx`, `apps/web/src/App.tsx`, `apps/web/src/i18n.ts`, `apps/web/src/styles.css`, `apps/web/vite.config.ts`, Phase 2C production UI components/tests, and required Phase 2C documentation/evidence; no Prisma or API source change is planned.
+- [x] Integrate Material UI 9.3.1 and the locked Verdant Operations I1 token system into the authoritative production frontend only.
+- [x] Implement production Arabic RTL, English LTR, and Urdu RTL typography and direction infrastructure without a runtime font CDN or competing localization architecture.
+- [x] Implement the selected production login presentation, authenticated app shell, responsive Drawer/Top Bar, dashboard shell, and shared UI states without Phase 3 business modules or fabricated KPIs.
+- [x] Add focused Phase 2C tests for direction/theme/drawer/login states/shared state behavior and preserve the accepted Phase 2A regression suite.
+- [x] Validate production routes at desktop and tablet viewports for Arabic, English, Urdu, loading, error, offline, and accessibility behavior.
+- [x] Add and record an explicit keyboard, focus-visible, menu, and dialog accessibility verification pass for Phase 2C.
+- [x] Produce all required Phase 2C evidence, screenshots, report, and a complete safe project-source ZIP with secret scanning and integrity validation.
+- [x] Save the final Phase 2C checkpoint and prepare delivery of the report, documentation, and full safe project-source ZIP without starting Phase 3.
+- [x] Diagnose the production startup failure caused by missing REDIS_URL and distinguish a code defect from a required external runtime configuration.
+- [x] Apply the minimal safe startup correction if the failure is caused by project code, without weakening production session security or changing Phase 2A data/auth behavior.
+- [x] Validate startup readiness, typecheck, build, and regression behavior; document the deployment outcome and prepare the correction for delivery.
+- [x] Audit the existing Prisma schema and migration chain for an additive server-side session table that supports a TiDB fallback without changing business tables.
+- [x] Implement a Redis-first, TiDB-backed session-store abstraction with the same session, expiry, logout, user-session invalidation, and CSRF behavior when REDIS_URL is absent.
+- [x] Prove the production API starts without REDIS_URL, run fallback-specific security tests plus the full regression/build checks, and verify deployment readiness.
+- [x] Save the deployment correction checkpoint and confirm the resulting production deployment health without starting a later phase.
+- [x] Read P-003_PHASE3_MASTER_DATA_OPERATIONAL_MODULES_PREPARED.md completely and map every Phase 3 requirement to implementation, evidence, limitation, or blocker.
+- [x] Audit the accepted Prisma/API/RBAC/frontend baseline and prove Phase 3 can use the existing schema and canonical migrations unchanged. Phase 3 baseline fingerprints are recorded in the execution evidence; planned source changes are limited to new administrative API/service/controller files, `app.module.ts`, Phase 3 tests, `App.tsx`, shared Phase 3 UI components, `i18n.ts`, test setup, and Phase 3 documentation/evidence. No Prisma schema, migration, lock, or Phase 4 source change is planned.
+- [x] Implement server-side admin.manage-protected Branches, Suppliers, Units, Categories, Users, Roles, Permissions, and UserBranchScope APIs with validation, pagination, sorting, deactivation, transactions, and safe audit events.
+- [x] Preserve immutable built-in role codes, system_admin admin.manage, last usable System Admin protection, secure Argon2id password handling, CSRF, and branch-scope semantics.
+- [x] Implement the six real Phase 3 administration screens in T3 + I1 with Arabic RTL, English LTR, Urdu RTL, loading/error/empty states, validation, confirmation, and tablet-safe interactions.
+- [x] Add focused backend and frontend interaction tests while preserving the complete Phase 2 regression suite and proving no Phase 4 functionality exists.
+- [x] Run schema/migration unchanged and TiDB parity/status checks, complete build/PWA/security/secret checks, and capture all required production visual evidence.
+- [x] Create the required Phase 3 report and documentation without starting Phase 4.
+- [x] Create and integrity-validate the Phase 3 safe-source/evidence ZIP with secret scanning and `unzip -t`.
+- [x] Save the Phase 3 closeout checkpoint and prepare delivery of the report, documentation, and ZIP without starting Phase 4.
+- [x] Read P-004_PHASE4_ITEMS_AND_CONFIGURATION_PREPARED.md completely and map every requirement to implementation, evidence, limitation, or blocker.
+- [x] Audit the authoritative Item, ItemUnit, BranchItem, BranchItemSupplier, StorageService, Prisma, and existing Phase 3 admin baseline; prove schema and canonical migrations remain unchanged in Phase 4. The recorded Phase 4 schema/migration fingerprints are unchanged; planned source changes are limited to item/admin API and storage files, the Fastify multipart dependency/configuration, Phase 4 UI/tests/documentation, with no Prisma or migration edit and no Phase 5 source.
+- [x] Implement server-side admin.manage-protected Item CRUD, multilingual names, category/status handling, filtering, pagination, sorting, soft deactivation/restore, and safe audit events.
+- [x] Implement safe Item image upload/read/replace/remove through the existing backend-only S3-compatible abstraction, with MIME, size, object-key, credential, and unavailable-storage protections; live IDrive object upload remains externally blocked by absent access credentials while the controlled unavailable-storage path is verified.
+- [x] Implement transactional ItemUnit and active-base-unit operations using existing integrity guards, including positive factor rules and active-item validation.
+- [x] Implement transactional BranchItem and BranchItemSupplier configuration, effective-date validation, restore/deactivation, and at-most-one active primary supplier integrity.
+- [x] Implement T3+I1 Items administration screens and dialogs with Arabic RTL, English LTR, Urdu RTL, real Phase 3 selectors, loading/error/empty/offline states, validation, confirmation, and tablet-safe interactions.
+- [x] Add Phase 4 backend/frontend tests; run full regression, build/PWA, Prisma validate/generate, safe integrity and secret checks, and capture required production visual evidence.
+- [x] Create every required Phase 4 report/document/evidence artifact without starting Phase 5.
+- [x] Create and integrity-validate the Phase 4 safe source/evidence ZIP with secret scanning and `unzip -t`.
+- [x] Save the Phase 4 closeout checkpoint and prepare delivery of the report, documentation, and ZIP without starting Phase 5.
+- [x] Read P-004-C1_PHASE4_TEMPORAL_PRIMARY_SUPPLIER_CORRECTION_PREPARED.md completely and map each temporal integrity requirement to implementation, evidence, limitation, or blocker.
+- [x] Audit current primary-supplier selection, guard reconciliation, BranchItem status transitions, request snapshot resolution, schema, and migrations before making the narrow correction.
+- [x] Implement a date-aware authoritative current-primary selection rule and safe ambiguity failure for request snapshot preparation without schema, migration, scheduler, Redis/TiDB-session, UI, or Phase 5 changes.
+- [x] Prevent overlapping active primary effective-date windows transactionally and reconcile the nullable guard safely across supplier/BranchItem status and date/primary edits.
+- [x] Add deterministic temporal integration tests for future start, expiry, scheduled transition, overlap rejection, deactivate/reactivate, supplier/status changes, and safe ambiguity handling.
+- [x] Run focused, Phase 4, full regression, TypeScript, production build/PWA, Prisma validate/generate, and source-scope/schema/migration checks.
+- [x] Create the narrow C1 report and required documentation without starting Phase 5.
+- [x] Create and integrity-validate the narrow C1 correction ZIP with secret scanning and `unzip -t`.
+- [x] Save the P-004-C1 closeout checkpoint and prepare delivery of the correction package without starting Phase 5.
+- [x] Read P-005_PHASE5_BRANCH_REQUISITION_POS_OPERATIONAL_WORKFLOW_PREPARED.md completely and map every Phase 5 requirement to implementation, evidence, limitation, or blocker.
+- [x] Audit the existing request models, RequestLinePreparationService, RequestSubmissionService, temporal supplier resolver, security/branch-scope guards, and Phase 4 catalog configuration without schema or migration changes. Planned source changes are limited to a Phase 5 requisition service/controller, request-line/submission integration, module wiring, Phase 5 UI/i18n/tests/documentation; Prisma schema and migrations remain unchanged and no Phase 6 source is planned.
+- [x] Implement a branch-scoped requestable catalog API and real server-backed draft/cart APIs using RequestRecord and RequestItem only, with effective branch scope, requestable configuration, localized item display, active units, image fallback, and no supplier disclosure.
+- [x] Implement authenticated request creation/resume, active-line upsert, draft edit/remove, my-requests/read-only status details, and returned-request edit/resubmit using existing request statuses and historical semantics.
+- [x] Enforce request.submit, CSRF, owner-and-scope protection, collision-safe request numbers, one active cart line per item, entire-draft revalidation, temporal supplier snapshot rules, atomic submit, row-version concurrency, status history, and audits.
+- [x] Implement the Phase 5 branch requisition UI with category/item touch cards, locked quantity-and-unit popup, cart badge/review, draft/status views, Arabic RTL, English LTR, Urdu RTL, and tablet-safe states.
+- [x] Add Phase 5 integration/frontend tests for branch scope, catalog filtering, unit validation, draft persistence, upsert/remove, returned resubmission, temporal revalidation, and concurrent submit; preserve prior regression coverage.
+- [x] Run Prisma/schema/migration parity checks, full regression, TypeScript, production build/PWA, security/secret checks, visual evidence, and report without starting Phase 6 or later.
+- [x] Create and integrity-validate the Phase 5 safe source/evidence ZIP with secret scanning and `unzip -t`.
+- [x] Save the Phase 5 closeout checkpoint and prepare delivery of the report, documentation, and ZIP without starting Phase 6 or later.
+- [x] Read P-005-C1_PHASE5_RETURNED_REQUEST_ATOMIC_MUTATION_CORRECTION_PREPARED.md completely and map every atomicity requirement to implementation, evidence, limitation, or blocker.
+- [x] Audit RequisitionService returned-edit/add paths and RequestLinePreparationService transaction boundaries, audit writes, row-version changes, schema, and migrations before the narrow correction.
+- [x] Refactor returned line edit so request lock/version, returned validation, quantity/unit validation and write, audit, rowVersion increment, and response all execute in one authoritative Prisma transaction.
+- [x] Refactor returned item add/upsert so active-line resolution or new snapshot creation, audit, rowVersion increment, and response execute in the same authoritative Prisma transaction.
+- [x] Add real TiDB tests for failed edit rollback, valid edit atomics, failed add rollback, concurrent add/upsert, and returned resubmission regression.
+- [x] Run focused, full, TypeScript, production build/PWA, and Prisma validate/generate checks for P-005-C1.
+- [x] Run the final C1 source-scope and schema/migration fingerprint checks without changing schema, migrations, UI, or Phase 6.
+- [x] Create the P-005-C1 atomicity report, acceptance matrix, changed-file list, and sanitized evidence summaries.
+- [x] Create, secret-scan, integrity-validate, and fingerprint the narrow C1 ZIP package.
+- [x] Save the final P-005-C1 checkpoint after reviewing this TODO list.
+- [x] Deliver the P-005-C1 report and verified ZIP without starting Phase 6.
+- [x] Read P-006_PHASE6_MANAGER_APPROVAL_WORKFLOW_PREPARED(1).md بالكامل وربط كل متطلب Phase 6 بتنفيذ أو دليل أو قيد أو عائق.
+- [x] تدقيق نماذج الطلبات والموافقات وسجل الحالة والتدقيق وصلاحيات ومدى فروع المدير وواجهات Phase 5/واجهة الويب، مع إثبات عدم تغيير Prisma schema أو migrations.
+- [x] تنفيذ API ومدخل المدير المقيدين بالخادم: قائمة pending، تفاصيل المراجعة، تعديل سطر pending، الاستبعاد المنطقي، وقرارات approve/return/reject الذرية.
+- [x] تنفيذ التحويل الذري `pending_approval → approved → sent_to_warehouse` مع RequestApproval وسجل الحالة والتدقيق والتواريخ الصحيحة ومنع السباقات.
+- [x] تنفيذ شاشات Material UI T3 + Verdant Operations لمدير الفرع، مع العربية والإنجليزية والأردية، RTL/LTR، والحالات التشغيلية وعدم تنفيذ أي تحكم للمستودع.
+- [x] إضافة اختبارات Phase 6 الحقيقية للتفويض والمدى والذرية والتزامن وإعادة تقديم الطلب المعاد، واختبارات الواجهة والتحقق المرئي المطلوب.
+- [x] تنفيذ اختبارات TiDB الحقيقية لـPhase 6 (5 حالات)، واختبار عقد الواجهة (4 حالات)، ولقطات إنتاجية Arabic RTL وEnglish LTR وUrdu RTL وحوارات التعديل/الاستبعاد/الإرجاع/الرفض/الاعتماد والتعارض.
+- [x] توثيق لقطة manager review على tablet/narrow viewport فعلي 893×768 عبر لقطتي review/conflict الأرديتين، دون mockup أو بيانات اعتماد.
+- [x] تشغيل البوابات المركزة والكاملة وPrisma وTypeScript والبناء/PWA وتدقيق النطاق والمخطط والمهاجرات وإعداد أدلة Phase 6.
+- [x] إعداد تقرير Phase 6 ووثائق العقد والحزمة الآمنة وفحص الأسرار والسلامة دون بدء Phase 7.
+- [x] حفظ checkpoint النهائي لـPhase 6 بعد مراجعة سجل المهام.
+- [x] تسليم تقرير وحزمة Phase 6 المتحقق منهما دون بدء Phase 7.
+- [x] قراءة P-007_PHASE7_WAREHOUSE_OPERATIONS_PREPARED.md كاملًا وربط كل مطلب Phase 7 بتنفيذ أو دليل أو قيد أو عائق.
+- [x] تدقيق خط أساس Phase 6 للطلبات واللقطات والحالات والتدقيق والصلاحيات والنطاق وواجهة الإنتاج، مع إثبات عدم تغيير Prisma schema أو migrations وعدم بدء Phase 8+.
+- [x] تنفيذ API وخدمة Warehouse Queue والتفاصيل والتجميعات الخادمية حسب request/branch/supplier snapshot/item باستخدام الكميات الأساسية المجمدة فقط ونطاق الفرع الفعلي.
+- [x] تنفيذ انتقالات المستودع الذرية الصارمة sent_to_warehouse→preparing→ready→dispatched→completed مع CSRF والقفل وrowVersion وسجل الحالة والتدقيق ومنع التكرار.
+- [x] تنفيذ واجهة T3 + I1 للمستودع: queue وfilters والتجميع والتفاصيل وحوارات الانتقال وحالات التحميل/الخطأ/offline/conflict بالعربية والإنجليزية والأردية دون UI للمخزون أو Phase 8+.
+- [x] إضافة اختبارات Phase 7 الحقيقية للتفويض والنطاق واللقطات والتجميع والذرية والتزامن وhandoff Phase 6 واختبارات عقد الواجهة والتحقق المرئي المطلوب.
+- [x] تشغيل Prisma وTypeScript والبناء/PWA والانحدار المستهدف والكامل وتدقيق النطاق والمخطط والمهاجرات، وإعداد أدلة Phase 7.
+- [x] إعداد تقرير ووثائق وحزمة Phase 7 الآمنة، وفحص الأسرار والسلامة دون بدء Phase 8.
+- [x] حفظ checkpoint النهائي لـPhase 7 بعد مراجعة سجل المهام.
+- [x] تسليم تقرير وحزمة Phase 7 المتحقق منهما دون بدء Phase 8.
+- [x] قراءة P-008_PHASE8_NOTIFICATIONS_AUDIT_ACTIVITY_PREPARED.md كاملًا وربط كل مطلب Phase 8 بتنفيذ أو دليل أو قيد أو عائق.
+- [x] تدقيق Notification وAuditLog وRequestStatusHistory وصلاحيات المستخدمين والنطاق وكتابة التدقيق الحالية من Phase 3–7، مع إثبات عدم تغيير Prisma schema أو migrations وعدم بدء Phase 9/10.
+- [x] تنفيذ خدمات API للإشعارات المملوكة للمستلم وcount/read/read-all، وقراءة AuditLog ونشاط المستخدم للإدارة فقط مع تصفية server-side وredaction.
+- [x] دمج fan-out الإشعارات المخول خادميًا في معاملات submit/return/reject/approve-handoff وwarehouse ready/dispatched/completed دون معاملات مستقلة أو إشعارات مكررة.
+- [x] تنفيذ مركز إشعارات T3+I1 وشاشتي Admin Audit وUser Activity وحالة status history المقروءة فقط، مع AR/EN/UR وRTL/LTR وoffline/error دون تقارير أو KPI أو Phase 9/10.
+- [x] إضافة اختبارات Phase 8 الفعلية للتفويض والنطاق والذرية والإشعارات وCSRF والملكية وredaction والنشاط، واختبارات الواجهة والتحقق المرئي بالعقود المطلوبة.
+- [x] تشغيل Prisma وTypeScript والبناء/PWA والانحدار المستهدف والكامل وتدقيق النطاق والمخطط والمهاجرات، وإعداد أدلة Phase 8.
+- [x] إعداد تقرير ووثائق وحزمة Phase 8 الآمنة، وفحص الأسرار والسلامة دون بدء Phase 9 أو 10.
+- [x] حفظ checkpoint النهائي لـPhase 8 بعد مراجعة سجل المهام.
+- [x] تسليم تقرير وحزمة Phase 8 المتحقق منهما دون بدء Phase 9 أو 10.
+- [x] قراءة P-009_PHASE9_REPORTS_DASHBOARDS_PREPARED.md كاملًا وربط كل مطلب Phase 9 بتنفيذ أو دليل أو قيد أو عائق.
+- [x] تدقيق نماذج الطلبات واللقطات وسجل الحالة والاعتمادات والمستودع والصلاحيات والنطاق وواجهة الإنتاج، مع إثبات عدم تغيير Prisma schema أو migrations وعدم بدء Phase 10.
+- [x] تنفيذ خدمة ومتحكم تقارير للقراءة فقط للوحة العمليات وتقارير الطلبات والفروع والأصناف واللقطات الموردة والحالة/الدورة والاعتمادات والمستودع، مع بيانات لقطة وسجل حالة سلطويين وتصفية server-side.
+- [x] تنفيذ صلاحيات `reports.view` و`reports.export` في كتالوج البذور وإلزام النطاق الفرعي الخادمي لكل صف وتجميع وfilter وخيار export دون مخطط جديد.
+- [x] تنفيذ تصدير CSV خادمي آمن يعيد فرض الصلاحية والنطاق والفلاتر، يحد النتائج، ويتجنب formula injection وبيانات الأسرار أو payloads الحساسة.
+- [x] تنفيذ لوحة وتقارير T3+I1 متعددة اللغات مع نطاقات تاريخ وفلاتر وجداول دقيقة وحالات تحميل/empty/error/offline وإتاحة export وفق الصلاحية دون مؤشرات مختلقة أو Phase 10.
+- [x] إضافة اختبارات Phase 9 الفعلية للسلطة والنطاق واللقطات والتوقيت والمقاييس والتصدير وCSV وواجهة العقود والتحقق المرئي والأداء التمثيلي.
+- [x] تشغيل Prisma وTypeScript والبناء/PWA والانحدار المستهدف والكامل وتدقيق النطاق والمخطط والمهاجرات وإعداد أدلة Phase 9.
+- [x] إعداد تقرير ووثائق وحزمة Phase 9 الآمنة، وفحص الأسرار والسلامة دون بدء Phase 10.
+- [x] حفظ checkpoint النهائي لـPhase 9 بعد مراجعة سجل المهام.
+- [x] تسليم تقرير وحزمة Phase 9 المتحقق منهما دون بدء Phase 10.
+- [x] قراءة P-009-C1_PHASE9_APPROVAL_DURATION_ATTRIBUTION_CORRECTION_PREPARED-1.md كاملًا وربط كل مطلب تصحيح بإصلاح أو دليل أو قيد أو عائق.
+- [x] تدقيق `ReportsService.approvals()` وCSV اختبار Phase 9 وسجل الحالة وقرارات الاعتماد، مع إثبات عدم تغيير Prisma schema أو migrations وعدم بدء Phase 10.
+- [x] إصلاح B-9-001 بحيث تسند `averageApprovalCycleMinutes` فقط إلى قرار `approved` للمدير الذي اتخذه، مع بقاء counts event-level ومدة التاريخ السلطوية دون إسناد للإرجاع أو الرفض.
+- [x] إضافة اختبارات TiDB لـcross-manager return/resubmit/approve وreject-only attribution مع تحقق CSV counts/durations والتنظيف الكامل للـfixtures.
+- [x] تشغيل الاختبارات المركزة وPhase 9 وPhase 5/6 ذات الصلة والانحدار الكامل وPrisma وTypeScript والبناء/PWA وتدقيق النطاق والمخطط والمهاجرات.
+- [x] إعداد تقرير وحزمة P-009-C1 الضيقة وفحص الأسرار والسلامة دون بدء Phase 10.
+- [x] حفظ checkpoint النهائي لـP-009-C1 بعد مراجعة سجل المهام.
+- [x] تسليم تقرير وحزمة P-009-C1 المتحقق منهما دون بدء Phase 10.
+- [x] قراءة P-010_PHASE10_HARDENING_RELEASE_READINESS_PREPARED.md كاملًا وربط كل مطلب Phase 10 بتنفيذ أو دليل أو قيد أو عائق، مع عدم إعلان Go-Live نهائي.
+- [x] تدقيق خط أساس شامل وسجل المعالجات المؤجلة، بما في ذلك Prisma/TiDB migration governance، الجلسات، التخزين، E2E، الأداء، UI، PWA، النسخ الاحتياطي والاستعادة، والنشر دون تغيير schema أو migrations أو بدء مرحلة لاحقة.
+- [x] تنفيذ التحسينات الآمنة والمنخفضة المخاطر ضمن Phase 10 فقط، بما في ذلك تقسيم bundle/التحميل الكسول والتحقق التفاعلي الحقيقي عند ثبوت الحاجة، دون تغيير سلوك الأعمال المقبول.
+- [x] تنفيذ سيناريوهات E2E الحقيقية A–E على fixtures موسومة وقابلة للتنظيف، وقياسات الأداء/التزامن، وفحص الأمن والجلسات وPWA واللغات/RTL والاستجابة وإتاحة الوصول والتخزين الخارجي وفق التوافر.
+- [x] تنفيذ أو توثيق تحقق النسخ الاحتياطي/الاستعادة المعزول، وstaging dry run، وخطة migration/deployment/rollback/monitoring وoperator smoke checklist دون Go-Live أو الكتابة في قاعدة إنتاجية.
+- [x] إنشاء سجل معالجات مؤجلة موحد مع الحالة والشدة والدليل وقرار FINAL GO-LIVE BLOCKING، وعدم إخفاء أو إسقاط الديون التاريخية.
+- [x] تشغيل Prisma وTypeScript والبناء/PWA والانحدار المستهدف والكامل وتدقيق النطاق والمخطط والمهاجرات والتبعيات والأسرار، وإعداد أدلة Phase 10.
+- [x] إعداد تقرير ووثائق وحزمة Phase 10 الآمنة، وفحص الأسرار والسلامة دون Final Go-Live أو بدء مرحلة لاحقة.
+- [x] حفظ checkpoint النهائي لـPhase 10 بعد مراجعة سجل المهام.
+- [x] تسليم تقرير وحزمة Phase 10 المتحقق منهما دون Final Go-Live أو بدء مرحلة لاحقة.
+- [x] قراءة P-FR-001_FINAL_CONSOLIDATED_REMEDIATION_SWEEP_PREPARED.md كاملًا وربط كل حجز R1–R6 وكل دين مؤجل بمعالجة أو دليل أو متطلب مالك دون Go-Live.
+- [x] تدقيق R1 migration/direct parity وR2 dependency audit وR3 storage وR4 backup/restore وR5 staging وR6 device/language/PWA، وتحديد ما يمكن إغلاقه بأمان في البيئة الحالية.
+- [x] معالجة التبعيات والثغرات بترقيات/overrides صغيرة متوافقة، والتحقق من lockfile والتدقيق والبناء والانحدار، مع توثيق أي خطر متبقٍ على أساس دليل لا ادعاء.
+- [x] تعزيز rendered DOM/browser harness لسيناريوهات الأعمال التمثيلية، ومعالجة ديون cart edit وreports sort/labels وlazy bundle وpnpm hygiene ضمن النطاق فقط.
+- [x] تنفيذ تحققات R1–R6 المتاحة بأدلة معزولة، وتنظيف fixtures الموسومة بأمان، وإنشاء OWNER_INPUT_REQUIREMENTS.md لكل prerequisite يسيطر عليه المالك.
+- [x] إنشاء DEFERRED_DEBT_DISPOSITION_MATRIX.md وسجل حواجز ومرشح قبول نهائي مع تصنيف CLOSED/RESIDUAL/OPEN لكل دين تاريخي.
+- [x] تشغيل Prisma وTypeScript والبناء/PWA والانحدار المستهدف والكامل وتدقيق النطاق والمخطط والمهاجرات والتبعيات والأسرار، ثم إعداد حزمة P-FR-001 وحفظ checkpoint وتسليمها دون Go-Live.
+- [x] توثيق نطاق ترحيل قاعدة TiDB الحالية إلى حساب جديد، وخطة النسخ والتحقق والتراجع، قبل أي كتابة على الهدف.
+- [x] حفظ اتصال TiDB الجديد عبر الأسرار والتحقق غير التخريبي من TLS والاتصال واسم القاعدة وحالة الهدف الفارغ.
+- [x] إنشاء قاعدة تطبيق TiDB جديدة فارغة باسم `restaurant_branch_requisition` داخل الحساب الجديد، وفق موافقة المستخدم، ثم إثبات وجودها دون نسخ بيانات بعد.
+- [x] إنشاء snapshot قابل للتحقق من المصدر ومقارنة المخطط والعدّادات والعلاقات قبل النقل، دون حذف المصدر أو تعديل migrations.
+- [x] نسخ المخطط والبيانات إلى TiDB الجديد وفق موافقة المستخدم، ثم التحقق من العدّادات والعلاقات والتشغيل على الهدف.
+- [x] تبديل اتصال المشروع إلى قاعدة TiDB الجديدة، وإجراء بوابات التطبيق وخطة تراجع تبقي المصدر متاحًا دون Go-Live مستقل.
+- [x] دعم سر `APP_DATABASE_URL` القابل للإدارة كأولوية لاتصال التطبيق، لأن `DATABASE_URL` المدمج غير قابل للتحرير، ثم التحقق من القراءة والتشغيل قبل اعتبار التبديل ناجحًا.
+- [x] توثيق ترحيل قاعدة TiDB في تقرير وحزمة آمنة، وحفظ checkpoint وتسليم النتيجة بعد التحقق الفعلي.
+- [x] تنفيذ مقارنة حيّة مستقلة بين مصدر TiDB والهدف الجديد باستخدام TiDB/SQL للقراءة فقط، وتوثيق فروق البنية الفعلية وعدّادات الصفوف وبصمات المحتوى من دون Prisma schema أو migrations.
+- [x] إعداد حزمة ZIP كاملة وآمنة من كود المشروع للعميل، مع استبعاد الأسرار وملفات البيئة والاعتمادات والمخرجات والسجلات، والتحقق من سلامتها وبصمتها قبل التسليم.

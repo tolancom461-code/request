@@ -1,0 +1,8 @@
+:root { font-synthesis: none; }
+* { box-sizing: border-box; }
+html, body, #root { min-height: 100%; }
+body { margin: 0; }
+[data-locale="ur"] .MuiTypography-root,
+[data-locale="ur"] .MuiButton-root,
+[data-locale="ur"] .MuiInputBase-root { line-height: 1.9; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }

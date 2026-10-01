@@ -1,0 +1,1 @@
+ALTER TABLE `users` MODIFY `email` VARCHAR(320) NULL;
