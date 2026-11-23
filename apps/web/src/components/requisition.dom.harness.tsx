@@ -17,8 +17,9 @@ describe("P-FR-001 rendered Cart Edit harness", () => {
     await i18n.changeLanguage("en");
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);
-      if (path.includes("/api/v1/requisition/branches") && !path.includes("/categories")) return json([branch]);
+      if (path === "/api/v1/requisition/branches") return json([branch]);
       if (path.includes("/api/v1/requisition/branches/branch-dom/categories")) return json([]);
+      if (path.includes("/api/v1/requisition/branches/branch-dom/items")) return json({ data: [{ branchItemId: "branch-item-dom", sku: "SKU-DOM", nameAr: "أرز", nameEn: "Rice", nameUr: "چاول", categoryId: "category-dom", imageAvailable: false, imageUrl: null, baseUnit: { code: "PCS", nameAr: "قطعة", nameEn: "Piece" } }], total: 1, page: 1, pageSize: 10 });
       if (path.includes("/api/v1/auth/csrf")) return json({ csrfToken: "csrf-dom-cart" });
       if (path.endsWith("/api/v1/requisitions") && init?.method === "POST") return json(initialRequest);
       if (path.includes("/api/v1/requisition/branch-items/branch-item-dom/units")) return json([{ id: "unit-piece", code: "PCS", nameAr: "قطعة", nameEn: "Piece", isBaseUnit: true }, { id: "unit-box", code: "BOX", nameAr: "صندوق", nameEn: "Box", isBaseUnit: false }]);
@@ -30,9 +31,8 @@ describe("P-FR-001 rendered Cart Edit harness", () => {
   test("edits a draft cart line through the real CSRF-protected PATCH contract", async () => {
     const user = userEvent.setup();
     render(<I18nextProvider i18n={i18n}><RequisitionPage online /></I18nextProvider>);
-    await user.click(await screen.findByLabelText("Branch"));
-    await user.click(await screen.findByRole("option", { name: /BR-DOM.*DOM Branch/ }));
-    await user.click(await screen.findByRole("button", { name: "Start draft" }));
+    await user.click(await screen.findByRole("button", { name: /Rice.*SKU-DOM/ }));
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
     await user.click(await screen.findByRole("button", { name: /^Cart/ }));
     await user.click(await screen.findByRole("button", { name: /Edit Rice/ }));
     const quantity = await screen.findByRole("spinbutton", { name: "Quantity" });
@@ -52,6 +52,8 @@ describe("P-FR-001 rendered Cart Edit harness", () => {
   test("disables cart mutation actions when the client is offline", async () => {
     render(<I18nextProvider i18n={i18n}><RequisitionPage online={false} /></I18nextProvider>);
     expect(await screen.findByRole("alert")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Start draft" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Cart" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("textbox", { name: "Search SKU or name" })).toHaveProperty("disabled", true);
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

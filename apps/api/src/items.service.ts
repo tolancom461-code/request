@@ -1,14 +1,12 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { ActorType, Prisma, RecordStatus } from "@prisma/client";
 import { PrismaService } from "./prisma.service.js";
-import { PrimarySupplierTemporalService } from "./primary-supplier-temporal.service.js";
 import { StorageService } from "./storage.service.js";
 
 export type ItemListQuery = { page: number; pageSize: number; search?: string; status?: RecordStatus; categoryId?: string; sortBy: string; sortDir: "asc" | "desc" };
 export type ItemInput = { sku: string; barcode?: string | null; categoryId: string; nameAr: string; nameEn?: string | null; nameUr?: string | null; status?: RecordStatus };
 export type ItemUnitInput = { unitId: string; conversionFactorToBase: string; isBaseUnit?: boolean; status?: RecordStatus };
 export type BranchItemInput = { branchId: string; status?: RecordStatus };
-export type SupplierInput = { supplierId: string; isPrimary?: boolean; status?: RecordStatus; effectiveFrom: string; effectiveTo?: string | null };
 
 const txOptions = { maxWait: 10_000, timeout: 60_000 };
 const asJson = (value: unknown) => value as Prisma.InputJsonValue;
@@ -16,7 +14,7 @@ const clean = (value: string | null | undefined) => value == null || value.trim(
 
 @Injectable()
 export class ItemsService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService, @Inject(StorageService) private readonly storage: StorageService, @Inject(PrimarySupplierTemporalService) private readonly primaries: PrimarySupplierTemporalService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService, @Inject(StorageService) private readonly storage: StorageService) {}
 
   private duplicate(error: unknown, label: string): never {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ConflictException(`${label} must be unique or already assigned.`);
@@ -52,12 +50,6 @@ export class ItemsService {
     if (count !== 1) throw new BadRequestException("An active item must have exactly one active base unit with factor 1.");
   }
 
-  private date(value: string, label: string) {
-    const parsed = new Date(`${value}T00:00:00.000Z`);
-    if (Number.isNaN(parsed.valueOf()) || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new BadRequestException(`${label} must be a valid ISO date.`);
-    return parsed;
-  }
-
   private itemView(item: Awaited<ReturnType<typeof this.prisma.item.findUnique>> & {}) { return item; }
 
   async list(query: ItemListQuery) {
@@ -75,7 +67,7 @@ export class ItemsService {
   }
 
   async get(id: string) {
-    const item = await this.prisma.item.findUnique({ where: { id }, include: { category: true, itemUnits: { include: { unit: true }, orderBy: { unit: { code: "asc" } } }, branchItems: { include: { branch: true, suppliers: { include: { supplier: true }, orderBy: { effectiveFrom: "asc" } } }, orderBy: { branch: { code: "asc" } } } } });
+    const item = await this.prisma.item.findUnique({ where: { id }, include: { category: true, itemUnits: { include: { unit: true }, orderBy: { unit: { code: "asc" } } }, branchItems: { include: { branch: true }, orderBy: { branch: { code: "asc" } } } } });
     if (!item) throw new NotFoundException("Item was not found.");
     return item;
   }
@@ -178,7 +170,7 @@ export class ItemsService {
     }, txOptions);
   }
 
-  async listBranches(itemId: string) { await this.item(this.prisma, itemId); return this.prisma.branchItem.findMany({ where: { itemId }, include: { branch: true, suppliers: { include: { supplier: true }, orderBy: { effectiveFrom: "asc" } } }, orderBy: { branch: { code: "asc" } } }); }
+  async listBranches(itemId: string) { await this.item(this.prisma, itemId); return this.prisma.branchItem.findMany({ where: { itemId }, include: { branch: true }, orderBy: { branch: { code: "asc" } } }); }
 
   async assignBranch(itemId: string, input: BranchItemInput, actorUserId: string) {
     try {
@@ -188,11 +180,11 @@ export class ItemsService {
         if (!branch || branch.status !== RecordStatus.active) throw new BadRequestException("Branch is not available.");
         if ((input.status ?? RecordStatus.active) === RecordStatus.active) {
           if (item.status !== RecordStatus.active) throw new BadRequestException("Only active items may be assigned to an active branch.");
+          if (!item.defaultSupplierId || !await tx.supplier.findFirst({ where: { id: item.defaultSupplierId, status: RecordStatus.active, deletedAt: null } })) throw new BadRequestException("Choose the item supplier before assigning a restaurant.");
           await this.assertOperationalBase(tx, itemId);
         }
         const existing = await tx.branchItem.findUnique({ where: { branchId_itemId: { branchId: input.branchId, itemId } } });
         const row = existing ? await tx.branchItem.update({ where: { id: existing.id }, data: { status: input.status ?? RecordStatus.active, deletedAt: input.status === RecordStatus.inactive ? new Date() : null } }) : await tx.branchItem.create({ data: { branchId: input.branchId, itemId, status: input.status ?? RecordStatus.active } });
-        await this.primaries.reconcileGuard(tx, row.id);
         await this.audit(tx, actorUserId, "branch_item", row.id, existing ? "restored_or_updated" : "created", undefined, { branchId: row.branchId, itemId: row.itemId, status: row.status });
         return row;
       }, txOptions);
@@ -204,53 +196,9 @@ export class ItemsService {
       const before = await tx.branchItem.findFirst({ where: { id: branchItemId, itemId } });
       if (!before) throw new NotFoundException("Branch item was not found.");
       const row = await tx.branchItem.update({ where: { id: branchItemId }, data: { status, deletedAt: status === RecordStatus.inactive ? new Date() : null } });
-      await this.primaries.reconcileGuard(tx, branchItemId);
       await this.audit(tx, actorUserId, "branch_item", branchItemId, status === RecordStatus.active ? "activated" : "deactivated", { status: before.status }, { status: row.status });
       return row;
     }, txOptions);
   }
 
-  async listSuppliers(branchItemId: string) { const row = await this.prisma.branchItem.findUnique({ where: { id: branchItemId } }); if (!row) throw new NotFoundException("Branch item was not found."); return this.prisma.branchItemSupplier.findMany({ where: { branchItemId }, include: { supplier: true }, orderBy: { effectiveFrom: "asc" } }); }
-
-  async upsertSupplier(branchItemId: string, input: SupplierInput, actorUserId: string) {
-    const effectiveFrom = this.date(input.effectiveFrom, "Effective from");
-    const effectiveTo = input.effectiveTo ? this.date(input.effectiveTo, "Effective to") : null;
-    if (effectiveTo && effectiveTo < effectiveFrom) throw new BadRequestException("Effective to cannot be before effective from.");
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const parent = await tx.branchItem.findUnique({ where: { id: branchItemId }, include: { branch: true, item: true } });
-        if (!parent || parent.status !== RecordStatus.active || parent.branch.status !== RecordStatus.active || parent.item.status !== RecordStatus.active) throw new BadRequestException("Branch item is not operationally active.");
-        await this.assertOperationalBase(tx, parent.itemId);
-        const supplier = await tx.supplier.findUnique({ where: { id: input.supplierId } });
-        if (!supplier || supplier.status !== RecordStatus.active || supplier.deletedAt) throw new BadRequestException("Supplier is not available.");
-        const existing = await tx.branchItemSupplier.findUnique({ where: { branchItemId_supplierId: { branchItemId, supplierId: input.supplierId } } });
-        await this.primaries.lockBranchItem(tx, branchItemId);
-        const status = input.status ?? existing?.status ?? RecordStatus.active;
-        const isPrimary = input.isPrimary ?? existing?.isPrimary ?? false;
-        if (status === RecordStatus.active && isPrimary) await this.primaries.assertNoOverlappingActivePrimary(tx, branchItemId, effectiveFrom, effectiveTo, existing?.id);
-        const data = { status, isPrimary, effectiveFrom, effectiveTo, activePrimaryBranchItemId: null };
-        const row = existing ? await tx.branchItemSupplier.update({ where: { id: existing.id }, data }) : await tx.branchItemSupplier.create({ data: { branchItemId, supplierId: input.supplierId, ...data } });
-        await this.primaries.reconcileGuard(tx, branchItemId);
-        await this.audit(tx, actorUserId, "branch_item_supplier", row.id, existing ? "updated" : "created", undefined, { branchItemId, supplierId: row.supplierId, status: row.status, isPrimary: row.isPrimary, effectiveFrom: row.effectiveFrom.toISOString().slice(0, 10), effectiveTo: row.effectiveTo?.toISOString().slice(0, 10) ?? null });
-        return tx.branchItemSupplier.findUniqueOrThrow({ where: { id: row.id } });
-      }, txOptions);
-    } catch (error) { return this.duplicate(error, "Branch item supplier"); }
-  }
-
-  async setSupplierStatus(branchItemId: string, id: string, status: RecordStatus, actorUserId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const before = await tx.branchItemSupplier.findFirst({ where: { id, branchItemId }, include: { supplier: true, branchItem: { include: { branch: true, item: true } } } });
-      if (!before) throw new NotFoundException("Branch item supplier was not found.");
-      if (status === RecordStatus.active) {
-        if (before.supplier.status !== RecordStatus.active || before.supplier.deletedAt || before.branchItem.status !== RecordStatus.active || before.branchItem.branch.status !== RecordStatus.active || before.branchItem.item.status !== RecordStatus.active) throw new BadRequestException("Supplier relationship is not operationally valid for activation.");
-        await this.assertOperationalBase(tx, before.branchItem.itemId);
-      }
-      await this.primaries.lockBranchItem(tx, branchItemId);
-      if (status === RecordStatus.active && before.isPrimary) await this.primaries.assertNoOverlappingActivePrimary(tx, branchItemId, before.effectiveFrom, before.effectiveTo, before.id);
-      const row = await tx.branchItemSupplier.update({ where: { id }, data: { status, activePrimaryBranchItemId: null } });
-      await this.primaries.reconcileGuard(tx, branchItemId);
-      await this.audit(tx, actorUserId, "branch_item_supplier", id, status === RecordStatus.active ? "activated" : "deactivated", { status: before.status }, { status: row.status });
-      return tx.branchItemSupplier.findUniqueOrThrow({ where: { id: row.id } });
-    }, txOptions);
-  }
 }

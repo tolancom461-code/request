@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { Prisma, RecordStatus, RequestStatus } from "@prisma/client";
 import { PrismaService } from "./prisma.service.js";
 import { BranchScopeService } from "./security.js";
-import { PrimarySupplierTemporalService } from "./primary-supplier-temporal.service.js";
+import { ItemSupplierService } from "./item-supplier.service.js";
 import { RequestLinePreparationService } from "./request-line-preparation.service.js";
 import { RequestSubmissionService } from "./request-submission.service.js";
 import { StorageService } from "./storage.service.js";
@@ -19,7 +19,7 @@ export class RequisitionService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(BranchScopeService) private readonly branchScopes: BranchScopeService,
-    @Inject(PrimarySupplierTemporalService) private readonly primaries: PrimarySupplierTemporalService,
+    @Inject(ItemSupplierService) private readonly suppliers: ItemSupplierService,
     @Inject(RequestLinePreparationService) private readonly lines: RequestLinePreparationService,
     @Inject(RequestSubmissionService) private readonly submissions: RequestSubmissionService,
     @Inject(StorageService) private readonly storage: StorageService,
@@ -60,7 +60,7 @@ export class RequisitionService {
         if (!haystack.includes(needle)) continue;
       }
       if (!row.item.itemUnits.length) continue;
-      if (!await this.primaries.resolveCurrentPrimary(this.prisma as unknown as Tx, row.id)) continue;
+      if (!await this.suppliers.resolveForBranchItem(this.prisma as unknown as Tx, row.id)) continue;
       result.push(row);
     }
     return result;
@@ -108,7 +108,7 @@ export class RequisitionService {
     const row = await this.prisma.branchItem.findUnique({ include: { item: { include: { itemUnits: { where: { status: RecordStatus.active }, include: { unit: true } } } } }, where: { id: branchItemId } });
     if (!row) throw new NotFoundException("Catalog item was not found.");
     await this.assertBranch(userId, row.branchId);
-    if (row.status !== RecordStatus.active || row.item.status !== RecordStatus.active || row.item.deletedAt || !await this.primaries.resolveCurrentPrimary(this.prisma as unknown as Tx, row.id)) throw new BadRequestException("Catalog item is not requestable.");
+    if (row.status !== RecordStatus.active || row.item.status !== RecordStatus.active || row.item.deletedAt || !await this.suppliers.resolveForBranchItem(this.prisma as unknown as Tx, row.id)) throw new BadRequestException("Catalog item is not requestable.");
     return row.item.itemUnits.map((entry) => ({ id: entry.id, code: entry.unit.code, nameAr: entry.unit.nameAr, nameEn: entry.unit.nameEn ?? entry.unit.nameAr, isBaseUnit: entry.isBaseUnit }));
   }
 
@@ -203,14 +203,16 @@ export class RequisitionService {
     const request = await this.assertOwnedRequest(userId, requestId);
     if (request.status !== RequestStatus.draft) throw new BadRequestException("Only a draft may be submitted.");
     if (expectedRowVersion !== undefined && request.rowVersion !== expectedRowVersion) throw new ConflictException("Draft changed concurrently; reload it before submitting.");
-    return this.submissions.submitFirstTime(requestId, userId);
+    await this.submissions.submitFirstTime(requestId, userId);
+    return this.requestDetail(userId, requestId);
   }
 
   async resubmit(userId: string, requestId: string, expectedRowVersion?: number) {
     const request = await this.assertOwnedRequest(userId, requestId);
     if (request.status !== RequestStatus.returned) throw new BadRequestException("Only a returned request may be resubmitted.");
     if (expectedRowVersion !== undefined && request.rowVersion !== expectedRowVersion) throw new ConflictException("Request changed concurrently; reload it before resubmitting.");
-    return this.submissions.resubmitReturned(requestId, userId);
+    await this.submissions.resubmitReturned(requestId, userId);
+    return this.requestDetail(userId, requestId);
   }
 
   private lineDto(line: RequestLineWithDisplay) {

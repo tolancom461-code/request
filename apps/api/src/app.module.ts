@@ -9,9 +9,11 @@ import { RequestLinePreparationService } from "./request-line-preparation.servic
 import { MasterDataIntegrityService } from "./master-data-integrity.service.js";
 import { AdminController } from "./admin.controller.js";
 import { AdminService } from "./admin.service.js";
-import { BranchItemSuppliersController, ItemsController } from "./items.controller.js";
+import { ItemsController } from "./items.controller.js";
 import { ItemsService } from "./items.service.js";
-import { PrimarySupplierTemporalService } from "./primary-supplier-temporal.service.js";
+import { ItemSetupController } from "./item-setup.controller.js";
+import { ItemSetupService } from "./item-setup.service.js";
+import { ItemSupplierService } from "./item-supplier.service.js";
 import { BranchScopeService, CsrfGuard, Permissions, PermissionsGuard, Public, SessionGuard } from "./security.js";
 import { SessionService, type SessionRecord } from "./session.service.js";
 import { StorageService } from "./storage.service.js";
@@ -154,7 +156,7 @@ class FoundationController {
 }
 
 @Module({
-  controllers: [AuthController, HealthController, FoundationController, AdminController, AuditActivityController, ReportsController, ItemsController, BranchItemSuppliersController, RequisitionController, ManagerApprovalController, WarehouseOperationsController, NotificationController],
+  controllers: [AuthController, HealthController, FoundationController, AdminController, AuditActivityController, ReportsController, ItemSetupController, ItemsController, RequisitionController, ManagerApprovalController, WarehouseOperationsController, NotificationController],
   providers: [
     PrismaService,
     SessionService,
@@ -162,10 +164,11 @@ class FoundationController {
     BranchScopeService,
     RequestSubmissionService,
     RequestLinePreparationService,
-    PrimarySupplierTemporalService,
+    ItemSupplierService,
     MasterDataIntegrityService,
     AdminService,
     ItemsService,
+    ItemSetupService,
     RequisitionService,
     ManagerApprovalService,
     WarehouseOperationsService,

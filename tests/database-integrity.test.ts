@@ -26,9 +26,9 @@ async function fixture() {
   const itemUnit = await masterData.createItemUnit({ itemId: item.id, unitId: unit.id, conversionFactorToBase: 1, isBaseUnit: true, status: RecordStatus.active });
   const branchItem = await prisma.branchItem.create({ data: { branchId: branch.id, itemId: item.id } });
   const supplier = await prisma.supplier.create({ data: { supplierCode: `TEST-SUP-${token}`, supplierName: "Test Supplier" } });
-  const supplierRelation = await masterData.createBranchItemSupplier({ branchItemId: branchItem.id, supplierId: supplier.id, isPrimary: true, status: RecordStatus.active, effectiveFrom: now });
+  await prisma.item.update({ where: { id: item.id }, data: { defaultSupplierId: supplier.id } });
   const request = await prisma.requestRecord.create({ data: { requestNumber: `TEST-REQ-${token}`, branchId: branch.id, createdByUserId: user.id, updatedAt: now } });
-  return { user, branch, category, item, unit, itemUnit, branchItem, supplier, supplierRelation, request };
+  return { user, branch, category, item, unit, itemUnit, branchItem, supplier, request };
 }
 
 async function cleanup(userEmail: string) {
@@ -84,7 +84,7 @@ describe("Phase 2A TiDB historical integrity", () => {
 
   it("TC-FK-04 rejects invalid Request Item → Request", async () => {
     const token = randomUUID().slice(0, 8);
-    await expect(prisma.$executeRawUnsafe("INSERT INTO request_items (id, request_id, branch_item_id_snapshot, item_id_snapshot, item_unit_id_snapshot, branch_item_supplier_id_snapshot, supplier_id_snapshot, supplier_code_snapshot, supplier_name_snapshot, requested_quantity, conversion_factor_snapshot, base_quantity_snapshot, line_status, added_after_first_submission) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", randomUUID(), randomUUID(), randomUUID(), randomUUID(), randomUUID(), randomUUID(), randomUUID(), `FK-SUP-${token}`, "FK supplier", "1.000000", "1.000000", "1.000000", "active", false)).rejects.toThrow(/foreign key/i);
+    await expect(prisma.requestItem.create({ data: { requestId: randomUUID(), branchItemIdSnapshot: randomUUID(), itemIdSnapshot: randomUUID(), itemUnitIdSnapshot: randomUUID(), supplierIdSnapshot: randomUUID(), supplierCodeSnapshot: `FK-SUP-${token}`, supplierNameSnapshot: "FK supplier", requestedQuantity: "1", conversionFactorSnapshot: "1", baseQuantitySnapshot: "1" } })).rejects.toThrow(/foreign key/i);
   });
 
   it("TC-FK-05 rejects invalid Request Item supplier snapshot reference", async () => {
@@ -92,7 +92,7 @@ describe("Phase 2A TiDB historical integrity", () => {
     try {
       await expect(prisma.requestItem.create({ data: {
         id: randomUUID(), requestId: data.request.id, branchItemIdSnapshot: data.branchItem.id, itemIdSnapshot: data.item.id,
-        itemUnitIdSnapshot: data.itemUnit.id, branchItemSupplierIdSnapshot: randomUUID(), supplierIdSnapshot: randomUUID(),
+        itemUnitIdSnapshot: data.itemUnit.id, supplierIdSnapshot: randomUUID(),
         supplierCodeSnapshot: "INVALID-FK", supplierNameSnapshot: "Invalid FK", requestedQuantity: "1", conversionFactorSnapshot: "1", baseQuantitySnapshot: "1",
       } })).rejects.toThrow(/foreign key/i);
     } finally {
@@ -105,8 +105,7 @@ describe("Phase 2A TiDB historical integrity", () => {
     try {
       const draftLine = await linePreparation.createDraftLine({ requestId: data.request.id, branchItemId: data.branchItem.id, itemUnitId: data.itemUnit.id, requestedQuantity: 3 });
       const replacementSupplier = await prisma.supplier.create({ data: { supplierCode: `TEST-REPLACEMENT-${randomUUID().slice(0, 8)}`, supplierName: "Replacement Supplier" } });
-      const replacementRelation = await masterData.createBranchItemSupplier({ branchItemId: data.branchItem.id, supplierId: replacementSupplier.id, isPrimary: false, status: RecordStatus.active, effectiveFrom: new Date() });
-      await masterData.replaceActivePrimarySupplier({ previousRelationId: data.supplierRelation.id, nextRelationId: replacementRelation.id });
+      await prisma.item.update({ where: { id: data.item.id }, data: { defaultSupplierId: replacementSupplier.id } });
       const submitted = await submissions.submitFirstTime(data.request.id, data.user.id);
       const authoritativeLine = await prisma.requestItem.findUniqueOrThrow({ where: { id: draftLine.id } });
       expect(submitted.status).toBe(RequestStatus.pending_approval);
@@ -180,7 +179,7 @@ describe("Phase 2A TiDB historical integrity", () => {
     } finally { await cleanup(data.user.email); }
   });
 
-  it("TC-DB-06 maintains base-unit and primary-supplier guard keys through replacement", async () => {
+  it("TC-DB-06 maintains the base-unit guard and direct item supplier through replacement", async () => {
     const data = await fixture();
     try {
       const nextUnit = await prisma.unit.create({ data: { code: `TEST-U2-${randomUUID().slice(0, 8)}`, nameAr: "وحدة ثانية" } });
@@ -190,10 +189,8 @@ describe("Phase 2A TiDB historical integrity", () => {
       const newBase = await masterData.replaceActiveBaseUnit({ previousItemUnitId: data.itemUnit.id, nextItemUnitId: inactiveNext.id });
       expect(newBase.activeBaseItemId).toBe(data.item.id);
       const nextSupplier = await prisma.supplier.create({ data: { supplierCode: `TEST-SUP2-${randomUUID().slice(0, 8)}`, supplierName: "Second Test Supplier" } });
-      await expect(masterData.createBranchItemSupplier({ branchItemId: data.branchItem.id, supplierId: nextSupplier.id, isPrimary: true, status: RecordStatus.active, effectiveFrom: new Date() })).rejects.toThrow(/primary supplier/i);
-      const secondary = await masterData.createBranchItemSupplier({ branchItemId: data.branchItem.id, supplierId: nextSupplier.id, isPrimary: false, status: RecordStatus.active, effectiveFrom: new Date() });
-      const primary = await masterData.replaceActivePrimarySupplier({ previousRelationId: data.supplierRelation.id, nextRelationId: secondary.id });
-      expect(primary.activePrimaryBranchItemId).toBe(data.branchItem.id);
+      await prisma.item.update({ where: { id: data.item.id }, data: { defaultSupplierId: nextSupplier.id } });
+      expect((await prisma.item.findUniqueOrThrow({ where: { id: data.item.id } })).defaultSupplierId).toBe(nextSupplier.id);
     } finally { await cleanup(data.user.email); }
   });
 

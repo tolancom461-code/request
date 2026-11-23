@@ -92,7 +92,6 @@ async function cleanup() {
     await prisma.userRole.deleteMany({ where: { userId: user.id } });
     await prisma.user.delete({ where: { id: user.id } });
   }
-  await prisma.branchItemSupplier.deleteMany({ where: { branchItem: { branchId } } });
   await prisma.branchItem.deleteMany({ where: { branchId } });
   await prisma.itemUnit.deleteMany({ where: { item: { sku: { startsWith: `P7-SKU-${suffix}` } } } });
   await prisma.item.deleteMany({ where: { sku: { startsWith: `P7-SKU-${suffix}` } } });
@@ -122,8 +121,8 @@ beforeAll(async () => {
   branchItemBId = (await prisma.branchItem.create({ data: { branchId, itemId: itemB.id } })).id;
   const originalSupplier = await prisma.supplier.create({ data: { supplierCode: `P7-SUP-${suffix}-ORIGINAL`, supplierName: "مورد اللقطة الأصلي" } });
   originalSupplierId = originalSupplier.id;
-  await prisma.branchItemSupplier.create({ data: { branchItemId: branchItemAId, supplierId: originalSupplier.id, isPrimary: true, activePrimaryBranchItemId: branchItemAId, effectiveFrom: new Date() } });
-  await prisma.branchItemSupplier.create({ data: { branchItemId: branchItemBId, supplierId: originalSupplier.id, isPrimary: true, activePrimaryBranchItemId: branchItemBId, effectiveFrom: new Date() } });
+  await prisma.item.update({ where: { id: (await prisma.branchItem.findUniqueOrThrow({ where: { id: branchItemAId } })).itemId }, data: { defaultSupplierId: originalSupplier.id } });
+  await prisma.item.update({ where: { id: (await prisma.branchItem.findUniqueOrThrow({ where: { id: branchItemBId } })).itemId }, data: { defaultSupplierId: originalSupplier.id } });
   const employee = await createUser("branch_employee", [branchId]);
   const manager = await createUser("branch_manager", [branchId]);
   const warehouse = await createUser("warehouse_manager", [branchId]);
@@ -156,10 +155,8 @@ describe("Phase 7 warehouse operations", () => {
   it("TC-P7-02 groups active frozen snapshots by request, branch, supplier and item while excluding manager-excluded lines", async () => {
     const pending = await createPending(true);
     const sent = await approveToWarehouse(pending, true);
-    const oldRelation = await prisma.branchItemSupplier.findFirstOrThrow({ where: { branchItemId: branchItemAId, supplierId: originalSupplierId } });
     const replacement = await prisma.supplier.create({ data: { supplierCode: `P7-SUP-${suffix}-CURRENT`, supplierName: "مورد حالي بعد اللقطة" } });
-    await prisma.branchItemSupplier.update({ where: { id: oldRelation.id }, data: { isPrimary: false, activePrimaryBranchItemId: null } });
-    await prisma.branchItemSupplier.create({ data: { branchItemId: branchItemAId, supplierId: replacement.id, isPrimary: true, activePrimaryBranchItemId: branchItemAId, effectiveFrom: new Date() } });
+    await prisma.item.update({ where: { id: (await prisma.branchItem.findUniqueOrThrow({ where: { id: branchItemAId } })).itemId }, data: { defaultSupplierId: replacement.id } });
     for (const groupBy of ["request", "branch", "supplier", "item"]) {
       const grouped = await request(app.getHttpServer()).get(url(`/warehouse/requests/groups?groupBy=${groupBy}&status=sent_to_warehouse&search=${encodeURIComponent(sent.requestNumber)}`)).set("Cookie", warehouseLogin.cookie);
       expect(grouped.status).toBe(200);

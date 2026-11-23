@@ -187,7 +187,7 @@ export class ManagerApprovalService {
     const branchItems = new Set<string>();
     for (const line of activeLines) {
       if (line.requestedQuantity.lte(0)) throw new BadRequestException("Active request line quantity must remain positive.");
-      if (!line.itemIdSnapshot || !line.itemUnitIdSnapshot || !line.branchItemIdSnapshot || !line.supplierIdSnapshot || !line.branchItemSupplierIdSnapshot || !line.supplierCodeSnapshot || !line.supplierNameSnapshot) throw new BadRequestException("Active request line has an incomplete frozen snapshot.");
+      if (!line.itemIdSnapshot || !line.itemUnitIdSnapshot || !line.branchItemIdSnapshot || !line.supplierIdSnapshot || !line.supplierCodeSnapshot || !line.supplierNameSnapshot) throw new BadRequestException("Active request line has an incomplete frozen snapshot.");
       if (branchItems.has(line.branchItemIdSnapshot)) throw new ConflictException("Request contains duplicate active item lines.");
       branchItems.add(line.branchItemIdSnapshot);
     }

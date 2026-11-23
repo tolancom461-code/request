@@ -13,9 +13,9 @@ describe("Phase 4 items administration UI contract", () => {
     expect(app).toContain('user.permissions?.includes("admin.manage")');
   });
 
-  it("renders real items, units, branch setup, supplier, image and state endpoints", () => {
-    const items = read("apps/web/src/components/items.tsx");
-    for (const endpoint of ["/api/v1/admin/items", "/units", "/branches", "/api/v1/admin/branch-items/", "/suppliers", "/image"]) expect(items).toContain(endpoint);
+  it("renders item-first setup with supplier selection before restaurant assignment", () => {
+    const items = read("apps/web/src/components/item-setup.tsx");
+    for (const endpoint of ["/api/v1/admin/item-setup/items", "/api/v1/admin/item-setup/restaurants/", "/supplier", "/units", "/image"]) expect(items).toContain(endpoint);
     expect(items).toContain('accept="image/jpeg,image/png,image/webp"');
     expect(items).toContain('itemImagePreview');
     expect(items).toContain("itemsOffline");

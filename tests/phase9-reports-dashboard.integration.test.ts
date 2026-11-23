@@ -89,7 +89,6 @@ async function cleanup() {
   await prisma.userBranchScope.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.userRole.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
-  await prisma.branchItemSupplier.deleteMany({ where: { branchItem: { branchId: { in: [branchId, otherBranchId] } } } });
   await prisma.branchItem.deleteMany({ where: { branchId: { in: [branchId, otherBranchId] } } });
   await prisma.itemUnit.deleteMany({ where: { item: { sku: { startsWith: `P9-SKU-${suffix}` } } } });
   await prisma.item.deleteMany({ where: { sku: { startsWith: `P9-SKU-${suffix}` } } });
@@ -112,8 +111,8 @@ beforeAll(async () => {
   branchItemId = (await prisma.branchItem.create({ data: { branchId, itemId: item.id } })).id;
   otherBranchItemId = (await prisma.branchItem.create({ data: { branchId: otherBranchId, itemId: item.id } })).id;
   supplierId = (await prisma.supplier.create({ data: { supplierCode: `P9-SUP-${suffix}`, supplierName: "Snapshot Supplier" } })).id;
-  await prisma.branchItemSupplier.create({ data: { branchItemId, supplierId, isPrimary: true, activePrimaryBranchItemId: branchItemId, effectiveFrom: new Date() } });
-  await prisma.branchItemSupplier.create({ data: { branchItemId: otherBranchItemId, supplierId, isPrimary: true, effectiveFrom: new Date() } });
+  await prisma.item.update({ where: { id: (await prisma.branchItem.findUniqueOrThrow({ where: { id: branchItemId } })).itemId }, data: { defaultSupplierId: supplierId } });
+  await prisma.item.update({ where: { id: (await prisma.branchItem.findUniqueOrThrow({ where: { id: otherBranchItemId } })).itemId }, data: { defaultSupplierId: supplierId } });
   const users = await Promise.all([
     createUser(["branch_employee"], [branchId], `=P9Creator-${suffix}`),
     createUser(["branch_employee"], [otherBranchId]),
@@ -215,7 +214,6 @@ describe("Phase 9 reports and dashboards", () => {
           branchItemIdSnapshot: branchItemId,
           itemIdSnapshot: (await prisma.branchItem.findUniqueOrThrow({ where: { id: branchItemId } })).itemId,
           itemUnitIdSnapshot: unitId,
-          branchItemSupplierIdSnapshot: (await prisma.branchItemSupplier.findFirstOrThrow({ where: { branchItemId, supplierId } })).id,
           supplierIdSnapshot: supplierId,
           supplierCodeSnapshot: `P9-SUP-${suffix}`,
           supplierNameSnapshot: "Snapshot Supplier",

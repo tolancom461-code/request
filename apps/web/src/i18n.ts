@@ -265,7 +265,42 @@ const resources = {
   },
 };
 
-for (const locale of ["ar", "en", "ur"] as const) Object.assign(resources[locale].translation, phase6Translations[locale], phase7Translations[locale], phase8Translations[locale], phase9Translations[locale]);
+const setupTranslations = {
+  ar: { setup: {
+    title: "تهيئة الأصناف والمطاعم", description: "احفظ بيانات الصنف، ثم حدد مورده، ثم اختر المطعم وخصص أصنافه.",
+    masterData: "ابدأ بإضافة البيانات الأساسية", restaurants: "المطاعم", itemDetails: "بيانات الأصناف", itemSupplier: "ربط الصنف بالمورد", restaurantItems: "تخصيص أصناف المطعم",
+    supplierNeeded: "حدد مورد الصنف", chooseItem: "اختر الصنف", linkSupplier: "ربط المورد", nextSupplier: "التالي: ربط المورد", nextRestaurants: "التالي: تخصيص أصناف المطعم",
+    supplierNotice: "يرتبط المورد بالصنف ويُستخدم في جميع مطاعمه. تغيير المورد يسري على الطلبات الجديدة، وتحتفظ الطلبات المقدمة ببيانات موردها.",
+    saveSupplier: "حفظ مورد الصنف", supplierSaved: "تم حفظ مورد الصنف.", restaurant: "المطعم", chooseRestaurant: "اختر المطعم",
+    restaurantNotice: "حدد الأصناف التي يحتاجها المطعم ثم احفظها معًا. الأصناف المفعلة والمكتملة تظهر للعامل في شاشة الطلب. يمكن تخصيص الصنف نفسه لأكثر من مطعم.",
+    selectedCount: "الأصناف المحددة: {{count}}", unsaved: "تغييرات لم تحفظ", selectVisible: "تحديد الأصناف المعروضة", noReadyItems: "لا توجد أصناف جاهزة مطابقة. احفظ بيانات الأصناف وحدد مورديها أولًا.",
+    existingItemNotice: "ارتباط سابق يحتاج مراجعة التهيئة", saveRestaurant: "حفظ أصناف المطعم", restaurantSaved: "تم حفظ أصناف المطعم.",
+    saveItem: "حفظ الصنف", itemSaved: "تم حفظ الصنف ووحدته. يمكنك الآن ربطه بالمورد.", itemSaveNotice: "يتم حفظ الأسماء والتصنيف والوحدة والصورة المختارة معًا. بعد الحفظ انتقل إلى ربط المورد.", extraUnits: "وحدات إضافية ومعاملات التحويل",
+  } },
+  en: { setup: {
+    title: "Item and restaurant setup", description: "Save item details, choose its supplier, then select a restaurant and assign its items.",
+    masterData: "Start with master data", restaurants: "Restaurants", itemDetails: "Item details", itemSupplier: "Item supplier", restaurantItems: "Restaurant items",
+    supplierNeeded: "Choose an item supplier", chooseItem: "Choose an item", linkSupplier: "Link supplier", nextSupplier: "Next: item supplier", nextRestaurants: "Next: restaurant items",
+    supplierNotice: "The supplier belongs to the item across all its restaurants. Changes apply to new submissions; submitted requests retain their supplier snapshots.",
+    saveSupplier: "Save item supplier", supplierSaved: "Item supplier saved.", restaurant: "Restaurant", chooseRestaurant: "Choose a restaurant",
+    restaurantNotice: "Select the items this restaurant needs and save them together. Active, configured items appear in its employee request screen. The same item can belong to several restaurants.",
+    selectedCount: "Selected items: {{count}}", unsaved: "Unsaved changes", selectVisible: "Select visible items", noReadyItems: "No matching configured items. Save item details and choose suppliers first.",
+    existingItemNotice: "Existing assignment needs a setup review", saveRestaurant: "Save restaurant items", restaurantSaved: "Restaurant items saved.",
+    saveItem: "Save item", itemSaved: "Item and unit saved. You can now choose its supplier.", itemSaveNotice: "Names, category, unit and the selected image are saved together. Choose the supplier after saving.", extraUnits: "Additional units and conversion factors",
+  } },
+  ur: { setup: {
+    title: "آئٹم اور ریسٹورنٹ کی ترتیب", description: "آئٹم کی تفصیل محفوظ کریں، سپلائر منتخب کریں، پھر ریسٹورنٹ کے آئٹمز مقرر کریں۔",
+    masterData: "پہلے بنیادی معلومات شامل کریں", restaurants: "ریسٹورنٹس", itemDetails: "آئٹم کی تفصیل", itemSupplier: "آئٹم کا سپلائر", restaurantItems: "ریسٹورنٹ کے آئٹمز",
+    supplierNeeded: "آئٹم کا سپلائر منتخب کریں", chooseItem: "آئٹم منتخب کریں", linkSupplier: "سپلائر منسلک کریں", nextSupplier: "اگلا: سپلائر", nextRestaurants: "اگلا: ریسٹورنٹ کے آئٹمز",
+    supplierNotice: "یہ سپلائر متعلقہ ریسٹورنٹس کے لیے استعمال ہوتا ہے۔ تبدیلی فعال روابط پر لاگو ہوتی ہے جبکہ سابقہ درخواستوں کی معلومات محفوظ رہتی ہیں۔",
+    saveSupplier: "آئٹم کا سپلائر محفوظ کریں", supplierSaved: "سپلائر محفوظ ہو گیا۔", restaurant: "ریسٹورنٹ", chooseRestaurant: "ریسٹورنٹ منتخب کریں",
+    restaurantNotice: "ریسٹورنٹ کے مطلوبہ آئٹمز منتخب کر کے ایک ساتھ محفوظ کریں۔ فعال اور مکمل آئٹمز کارکن کی درخواست سکرین پر نظر آئیں گے۔ ایک آئٹم کئی ریسٹورنٹس کے لیے مقرر ہو سکتا ہے۔",
+    selectedCount: "منتخب آئٹمز: {{count}}", unsaved: "غیر محفوظ تبدیلیاں", selectVisible: "نظر آنے والے آئٹمز منتخب کریں", noReadyItems: "مکمل آئٹمز موجود نہیں۔ پہلے تفصیل اور سپلائر محفوظ کریں۔",
+    existingItemNotice: "موجودہ تفویض کی ترتیب کا جائزہ لیں", saveRestaurant: "ریسٹورنٹ کے آئٹمز محفوظ کریں", restaurantSaved: "ریسٹورنٹ کے آئٹمز محفوظ ہو گئے۔",
+    saveItem: "آئٹم محفوظ کریں", itemSaved: "آئٹم اور اکائی محفوظ ہو گئے۔ اب سپلائر منتخب کریں۔", itemSaveNotice: "نام، زمرہ، اکائی اور منتخب تصویر ایک ساتھ محفوظ ہوں گے۔ پھر سپلائر منتخب کریں۔", extraUnits: "اضافی اکائیاں اور تبدیلی عوامل",
+  } },
+};
+for (const locale of ["ar", "en", "ur"] as const) Object.assign(resources[locale].translation, phase6Translations[locale], phase7Translations[locale], phase8Translations[locale], phase9Translations[locale], setupTranslations[locale]);
 
 void i18n.use(initReactI18next).init({
   resources,

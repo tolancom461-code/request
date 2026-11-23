@@ -2,7 +2,6 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { ActorType, Prisma, RecordStatus } from "@prisma/client";
 import argon2 from "argon2";
 import { PrismaService } from "./prisma.service.js";
-import { PrimarySupplierTemporalService } from "./primary-supplier-temporal.service.js";
 
 export type ListQuery = {
   page: number;
@@ -36,7 +35,7 @@ const toUser = (user: { id: string; username: string; email: string | null; stat
 
 @Injectable()
 export class AdminService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService, @Inject(PrimarySupplierTemporalService) private readonly primaries: PrimarySupplierTemporalService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   private pagination<T>(query: ListQuery, total: number, items: T[]) {
     return { items, page: query.page, pageSize: query.pageSize, total, totalPages: Math.max(1, Math.ceil(total / query.pageSize)) };
@@ -175,8 +174,6 @@ export class AdminService {
       const before = await tx.supplier.findUnique({ where: { id } });
       if (!before) throw new NotFoundException("Supplier was not found.");
       const supplier = await tx.supplier.update({ where: { id }, data: { status: input.status, deletedAt: input.status === RecordStatus.inactive ? new Date() : null } });
-      const relations = await tx.branchItemSupplier.findMany({ where: { supplierId: id }, select: { branchItemId: true } });
-      for (const branchItemId of new Set(relations.map((relation) => relation.branchItemId))) await this.primaries.reconcileGuard(tx, branchItemId);
       await this.audit(tx, actorUserId, "supplier", id, input.status === RecordStatus.active ? "restored" : "deactivated", { status: before.status, deletedAt: before.deletedAt?.toISOString() ?? null }, { status: supplier.status, deletedAt: supplier.deletedAt?.toISOString() ?? null });
       return supplier;
     }, txOptions);

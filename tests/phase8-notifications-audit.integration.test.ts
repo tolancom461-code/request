@@ -82,7 +82,6 @@ async function cleanup() {
   await prisma.userBranchScope.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.userRole.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
-  await prisma.branchItemSupplier.deleteMany({ where: { branchItem: { branchId } } });
   await prisma.branchItem.deleteMany({ where: { branchId } });
   await prisma.itemUnit.deleteMany({ where: { item: { sku: { startsWith: `P8-SKU-${suffix}` } } } });
   await prisma.item.deleteMany({ where: { sku: { startsWith: `P8-SKU-${suffix}` } } });
@@ -104,7 +103,7 @@ beforeAll(async () => {
   unitId = (await prisma.itemUnit.create({ data: { itemId: item.id, unitId: unit.id, conversionFactorToBase: 1, isBaseUnit: true, activeBaseItemId: item.id } })).id;
   branchItemId = (await prisma.branchItem.create({ data: { branchId, itemId: item.id } })).id;
   const supplier = await prisma.supplier.create({ data: { supplierCode: `P8-SUP-${suffix}`, supplierName: "مورد إشعار" } });
-  await prisma.branchItemSupplier.create({ data: { branchItemId, supplierId: supplier.id, isPrimary: true, activePrimaryBranchItemId: branchItemId, effectiveFrom: new Date() } });
+  await prisma.item.update({ where: { id: (await prisma.branchItem.findUniqueOrThrow({ where: { id: branchItemId } })).itemId }, data: { defaultSupplierId: supplier.id } });
   const employees = await Promise.all([
     createUser(["branch_employee"], [branchId]),
     createUser(["branch_manager"], [branchId]),

@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import argon2 from "argon2";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { StorageService } from "../apps/api/src/storage.service.js";
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { createApplication } from "../apps/api/src/main.js";
 import { secureMysqlUrl } from "../apps/api/src/config.js";
@@ -35,6 +36,13 @@ async function user(roleCode: string, prefix: string) {
 }
 
 beforeAll(async () => {
+  vi.spyOn(StorageService.prototype, "putItemImage").mockImplementation(async function (itemId, bytes, contentType, size) {
+    this.validateImage(contentType, size);
+    if (bytes.byteLength !== size) throw new Error("Invalid image length");
+    return `items/${itemId}/isolated-test.png`;
+  });
+  vi.spyOn(StorageService.prototype, "removeItemImage").mockResolvedValue(undefined);
+  vi.spyOn(StorageService.prototype, "signedItemImageUrl").mockResolvedValue("https://images.example.test/isolated-test.png");
   process.env.PUBLIC_APP_ORIGIN = "http://localhost:5173";
   await prisma.$connect();
   const admin = await user("system_admin", "phase4-admin");
@@ -57,11 +65,11 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
+  vi.restoreAllMocks();
   await app?.close();
   const branchItems = itemIds.length ? await prisma.branchItem.findMany({ where: { itemId: { in: itemIds } }, select: { id: true } }) : [];
   const branchItemIds = branchItems.map((entry) => entry.id);
   await prisma.auditLog.deleteMany({ where: { OR: [{ entityId: { in: itemIds } }, { entityId: { in: branchItemIds } }] } });
-  if (branchItemIds.length) await prisma.branchItemSupplier.deleteMany({ where: { branchItemId: { in: branchItemIds } } });
   if (branchItemIds.length) await prisma.branchItem.deleteMany({ where: { id: { in: branchItemIds } } });
   if (itemIds.length) await prisma.itemUnit.deleteMany({ where: { itemId: { in: itemIds } } });
   if (itemIds.length) await prisma.item.deleteMany({ where: { id: { in: itemIds } } });
@@ -102,17 +110,16 @@ describe("Phase 4 item configuration", () => {
     const units = await adminGet(`/api/v1/admin/items/${itemId}/units`);
     const base = units.body.find((unit: { isBaseUnit: boolean }) => unit.isBaseUnit);
     expect((await adminMutate("patch", `/api/v1/admin/items/${itemId}/units/${base.id}`).send({ status: "inactive" })).status).toBe(400);
+    expect((await adminMutate("post", `/api/v1/admin/item-setup/items/${itemId}/supplier`).send({ supplierId: supplierOneId })).status).toBe(201);
     const branchItem = await adminMutate("post", `/api/v1/admin/items/${itemId}/branches`).send({ branchId, status: "active" });
     expect(branchItem.status).toBe(201);
     expect((await adminMutate("post", `/api/v1/admin/items/${itemId}/branches`).send({ branchId, status: "active" })).status).toBe(201);
-    const invalidDate = await adminMutate("post", `/api/v1/admin/branch-items/${branchItem.body.id}/suppliers`).send({ supplierId: supplierOneId, isPrimary: true, effectiveFrom: "2026-02-01", effectiveTo: "2026-01-31" });
-    expect(invalidDate.status).toBe(400);
-    const first = await adminMutate("post", `/api/v1/admin/branch-items/${branchItem.body.id}/suppliers`).send({ supplierId: supplierOneId, isPrimary: true, effectiveFrom: "2020-01-01" });
-    expect(first.status).toBe(201); expect(first.body.activePrimaryBranchItemId).toBe(branchItem.body.id);
-    const second = await adminMutate("post", `/api/v1/admin/branch-items/${branchItem.body.id}/suppliers`).send({ supplierId: supplierTwoId, isPrimary: true, effectiveFrom: "2020-01-01" });
-    expect(second.status).toBe(409);
-    const suppliers = await adminGet(`/api/v1/admin/branch-items/${branchItem.body.id}/suppliers`);
-    expect(suppliers.body.filter((entry: { activePrimaryBranchItemId: string | null }) => entry.activePrimaryBranchItemId === branchItem.body.id)).toHaveLength(1);
+    const chosen = await adminMutate("post", `/api/v1/admin/item-setup/items/${itemId}/supplier`).send({ supplierId: supplierOneId });
+    expect(chosen.status).toBe(201);
+    expect((await adminGet(`/api/v1/admin/items/${itemId}`)).body.defaultSupplierId).toBe(supplierOneId);
+    const replaced = await adminMutate("post", `/api/v1/admin/item-setup/items/${itemId}/supplier`).send({ supplierId: supplierTwoId });
+    expect(replaced.status).toBe(201);
+    expect((await adminGet(`/api/v1/admin/items/${itemId}`)).body.defaultSupplierId).toBe(supplierTwoId);
   }, 60_000);
 
   it("rejects unsupported images and uploads/removes supported images using configured object storage", async () => {

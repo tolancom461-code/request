@@ -57,7 +57,6 @@ async function cleanup() {
     await prisma.userRole.deleteMany({ where: { userId: ownerId } });
     await prisma.user.delete({ where: { id: ownerId } });
   }
-  await prisma.branchItemSupplier.deleteMany({ where: { branchItem: { branchId } } });
   await prisma.branchItem.deleteMany({ where: { branchId } });
   await prisma.itemUnit.deleteMany({ where: { item: { sku: { startsWith: `P5C1-SKU-${suffix}` } } } });
   await prisma.item.deleteMany({ where: { sku: { startsWith: `P5C1-SKU-${suffix}` } } });
@@ -86,10 +85,7 @@ beforeAll(async () => {
   secondaryUnitId = (await prisma.itemUnit.create({ data: { itemId: secondaryItem.id, unitId: secondaryUnit.id, conversionFactorToBase: 1, isBaseUnit: true, activeBaseItemId: secondaryItem.id } })).id;
   primaryBranchItemId = (await prisma.branchItem.create({ data: { branchId, itemId: primaryItem.id } })).id;
   secondaryBranchItemId = (await prisma.branchItem.create({ data: { branchId, itemId: secondaryItem.id } })).id;
-  await prisma.branchItemSupplier.createMany({ data: [
-    { branchItemId: primaryBranchItemId, supplierId: supplier.id, isPrimary: true, activePrimaryBranchItemId: primaryBranchItemId, effectiveFrom: new Date() },
-    { branchItemId: secondaryBranchItemId, supplierId: supplier.id, isPrimary: true, activePrimaryBranchItemId: secondaryBranchItemId, effectiveFrom: new Date() },
-  ] });
+  await prisma.item.updateMany({ where: { id: { in: [primaryItem.id, secondaryItem.id] } }, data: { defaultSupplierId: supplier.id } });
   const owner = await prisma.user.create({ data: { username: `p5c1-owner-${suffix}`, email: `p5c1-owner-${suffix}@example.test`, passwordHash: await argon2.hash(password) } });
   ownerId = owner.id;
   await prisma.userRole.create({ data: { userId: owner.id, roleId: role.id } });

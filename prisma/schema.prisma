@@ -140,8 +140,8 @@ model Supplier {
   taxNumber    String?      @unique @map("tax_number") @db.VarChar(100)
   status       RecordStatus @default(active)
   deletedAt    DateTime?    @map("deleted_at") @db.DateTime(3)
-  relations    BranchItemSupplier[]
   snapshots    RequestItem[] @relation("RequestItemSupplierSnapshot")
+  defaultItems Item[]        @relation("ItemDefaultSupplier")
 
   @@map("suppliers")
 }
@@ -178,14 +178,17 @@ model Item {
   nameEn         String?      @map("name_en") @db.VarChar(250)
   nameUr         String?      @map("name_ur") @db.VarChar(250)
   imageObjectKey String?      @map("image_object_key") @db.VarChar(500)
+  defaultSupplierId String?   @map("default_supplier_id") @db.Char(36)
   status         RecordStatus @default(active)
   deletedAt      DateTime?    @map("deleted_at") @db.DateTime(3)
   category       Category     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  defaultSupplier Supplier?   @relation("ItemDefaultSupplier", fields: [defaultSupplierId], references: [id], onDelete: Restrict)
   itemUnits      ItemUnit[]
   branchItems    BranchItem[]
   snapshots      RequestItem[] @relation("RequestItemItemSnapshot")
 
   @@index([categoryId])
+  @@index([defaultSupplierId])
   @@map("items")
 }
 
@@ -215,7 +218,6 @@ model BranchItem {
   deletedAt DateTime?    @map("deleted_at") @db.DateTime(3)
   branch    Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict)
   item      Item         @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  suppliers BranchItemSupplier[]
   snapshots RequestItem[] @relation("RequestItemBranchItemSnapshot")
 
   @@unique([branchId, itemId])
@@ -223,24 +225,6 @@ model BranchItem {
   @@map("branch_items")
 }
 
-model BranchItemSupplier {
-  id           String       @id @default(uuid()) @db.Char(36)
-  branchItemId String       @map("branch_item_id") @db.Char(36)
-  supplierId   String       @map("supplier_id") @db.Char(36)
-  isPrimary    Boolean      @default(false) @map("is_primary")
-  status       RecordStatus @default(active)
-  activePrimaryBranchItemId String?   @unique @map("active_primary_branch_item_id") @db.Char(36)
-  effectiveFrom DateTime    @map("effective_from") @db.Date
-  effectiveTo   DateTime?   @map("effective_to") @db.Date
-  branchItem   BranchItem   @relation(fields: [branchItemId], references: [id], onDelete: Restrict)
-  supplier     Supplier     @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  snapshots    RequestItem[] @relation("RequestItemSupplierRelationSnapshot")
-
-  @@unique([branchItemId, supplierId])
-  @@index([branchItemId, status, isPrimary])
-  @@index([supplierId])
-  @@map("branch_item_suppliers")
-}
 
 model RequestRecord {
   id                   String        @id @default(uuid()) @db.Char(36)
@@ -271,7 +255,6 @@ model RequestItem {
   branchItemIdSnapshot          String            @map("branch_item_id_snapshot") @db.Char(36)
   itemIdSnapshot                String            @map("item_id_snapshot") @db.Char(36)
   itemUnitIdSnapshot            String            @map("item_unit_id_snapshot") @db.Char(36)
-  branchItemSupplierIdSnapshot  String            @map("branch_item_supplier_id_snapshot") @db.Char(36)
   supplierIdSnapshot            String            @map("supplier_id_snapshot") @db.Char(36)
   supplierCodeSnapshot          String            @map("supplier_code_snapshot") @db.VarChar(80)
   supplierNameSnapshot          String            @map("supplier_name_snapshot") @db.VarChar(200)
@@ -289,7 +272,6 @@ model RequestItem {
   branchItemSnapshot            BranchItem        @relation("RequestItemBranchItemSnapshot", fields: [branchItemIdSnapshot], references: [id], onDelete: Restrict)
   itemSnapshot                  Item              @relation("RequestItemItemSnapshot", fields: [itemIdSnapshot], references: [id], onDelete: Restrict)
   itemUnitSnapshot              ItemUnit          @relation("RequestItemUnitSnapshot", fields: [itemUnitIdSnapshot], references: [id], onDelete: Restrict)
-  supplierRelationSnapshot      BranchItemSupplier @relation("RequestItemSupplierRelationSnapshot", fields: [branchItemSupplierIdSnapshot], references: [id], onDelete: Restrict)
   supplierSnapshot              Supplier          @relation("RequestItemSupplierSnapshot", fields: [supplierIdSnapshot], references: [id], onDelete: Restrict)
   addedBy                       User?             @relation("RequestItemAddedBy", fields: [addedByUserId], references: [id], onDelete: SetNull)
   removedBy                     User?             @relation("RequestItemRemovedBy", fields: [removedByUserId], references: [id], onDelete: SetNull)
@@ -298,7 +280,6 @@ model RequestItem {
   @@index([branchItemIdSnapshot])
   @@index([itemIdSnapshot])
   @@index([itemUnitIdSnapshot])
-  @@index([branchItemSupplierIdSnapshot])
   @@index([supplierIdSnapshot])
   @@index([addedByUserId])
   @@index([removedByUserId])

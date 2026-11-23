@@ -2,14 +2,14 @@ import { BadRequestException, ConflictException, Inject, Injectable } from "@nes
 import { Prisma, RequestStatus } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { PrismaService } from "./prisma.service.js";
-import { PrimarySupplierTemporalService } from "./primary-supplier-temporal.service.js";
+import { ItemSupplierService } from "./item-supplier.service.js";
 
 type Transaction = Prisma.TransactionClient;
 type SnapshotInput = { branchItemId: string; itemUnitId: string; requestedQuantity: Decimal.Value };
 
 @Injectable()
 export class RequestLinePreparationService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService, @Inject(PrimarySupplierTemporalService) private readonly primaries: PrimarySupplierTemporalService = new PrimarySupplierTemporalService(prisma)) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService, @Inject(ItemSupplierService) private readonly suppliers: ItemSupplierService = new ItemSupplierService(prisma)) {}
 
   private async resolveSnapshot(tx: Transaction, requestId: string, input: SnapshotInput) {
     const requestedQuantity = new Decimal(input.requestedQuantity);
@@ -24,19 +24,18 @@ export class RequestLinePreparationService {
       where: { id: input.itemUnitId, itemId: branchItem.itemId, status: "active" },
     });
     if (!itemUnit) throw new BadRequestException("The selected unit is not active for this item.");
-    const supplierRelation = await this.primaries.resolveCurrentPrimary(tx, branchItem.id);
-    if (!supplierRelation) {
-      throw new BadRequestException("No active primary supplier is configured for this branch item.");
+    const supplierSelection = await this.suppliers.resolveForBranchItem(tx, branchItem.id);
+    if (!supplierSelection) {
+      throw new BadRequestException("No active supplier is configured for this item.");
     }
     return {
       requestedQuantity,
       branchItemIdSnapshot: branchItem.id,
       itemIdSnapshot: branchItem.itemId,
       itemUnitIdSnapshot: itemUnit.id,
-      branchItemSupplierIdSnapshot: supplierRelation.id,
-      supplierIdSnapshot: supplierRelation.supplierId,
-      supplierCodeSnapshot: supplierRelation.supplier.supplierCode,
-      supplierNameSnapshot: supplierRelation.supplier.supplierName,
+      supplierIdSnapshot: supplierSelection.supplierId,
+      supplierCodeSnapshot: supplierSelection.supplier.supplierCode,
+      supplierNameSnapshot: supplierSelection.supplier.supplierName,
       conversionFactorSnapshot: itemUnit.conversionFactorToBase,
       baseQuantitySnapshot: requestedQuantity.mul(itemUnit.conversionFactorToBase),
     };

@@ -91,10 +91,13 @@ function applyMigration(source: string, file: string, expected: ReturnType<typeo
   for (const match of source.matchAll(/ALTER TABLE `([^`]+)`\s+ADD COLUMN `([^`]+)`\s+([^,;]+)(?:,|;)/gi)) {
     expected.tables.get(match[1])?.columns.set(match[2], parseColumnDefinition(match[3]));
   }
+  for (const match of source.matchAll(/ALTER TABLE `([^`]+)`\s+MODIFY\s+(?:COLUMN\s+)?`([^`]+)`\s+([^;]+);/gi)) {
+    expected.tables.get(match[1])?.columns.set(match[2], parseColumnDefinition(match[3]));
+  }
   for (const match of source.matchAll(/ALTER TABLE `([^`]+)`\s+ADD (UNIQUE )?INDEX `([^`]+)`\s*\(([^)]+)\)/gi)) {
     expected.indexes.set(indexKey(match[1], match[3]), { table: match[1], name: match[3], unique: Boolean(match[2]), columns: parseColumns(match[4]), indexType: "BTREE" });
   }
-  for (const match of source.matchAll(/ALTER TABLE `([^`]+)`\s+ADD CONSTRAINT `([^`]+)` FOREIGN KEY \(`([^`]+)`\) REFERENCES `([^`]+)`\(`([^`]+)`\) ON DELETE ([A-Z ]+) ON UPDATE ([A-Z ]+);/gi)) {
+  for (const match of source.matchAll(/ALTER TABLE `([^`]+)`\s+ADD CONSTRAINT `([^`]+)`\s+FOREIGN KEY \(`([^`]+)`\)\s+REFERENCES `([^`]+)`\s*\(`([^`]+)`\)\s+ON DELETE ([A-Z ]+) ON UPDATE ([A-Z ]+);/gi)) {
     const definition: ForeignKeyDefinition = { table: match[1], name: match[2], column: match[3], referencedTable: match[4], referencedColumn: match[5], deleteRule: match[6].trim(), updateRule: match[7].trim() };
     expected.foreignKeys.set(definition.name, definition);
   }
@@ -105,6 +108,16 @@ function applyMigration(source: string, file: string, expected: ReturnType<typeo
   for (const match of source.matchAll(/DROP INDEX `([^`]+)` ON `([^`]+)`/gi)) {
     const key = indexKey(match[2], match[1]);
     if (!expected.indexes.delete(key)) expected.migrationChainErrors.push(`${file}: DROP INDEX references no prior version-controlled index ${key}`);
+  }
+  for (const match of source.matchAll(/ALTER TABLE `([^`]+)`\s+DROP FOREIGN KEY `([^`]+)`/gi)) expected.foreignKeys.delete(match[2]);
+  for (const match of source.matchAll(/ALTER TABLE `([^`]+)`\s+DROP COLUMN `([^`]+)`/gi)) {
+    expected.tables.get(match[1])?.columns.delete(match[2]);
+    for (const [key, index] of expected.indexes) if (index.table === match[1] && index.columns.includes(match[2])) expected.indexes.delete(key);
+  }
+  for (const match of source.matchAll(/DROP TABLE `([^`]+)`/gi)) {
+    expected.tables.delete(match[1]);
+    for (const [key, index] of expected.indexes) if (index.table === match[1]) expected.indexes.delete(key);
+    for (const [key, foreignKey] of expected.foreignKeys) if (foreignKey.table === match[1]) expected.foreignKeys.delete(key);
   }
 }
 
@@ -119,8 +132,8 @@ async function migrationSources() {
 }
 
 function prismaCommand(args: string[]) {
-  const result = spawnSync("pnpm", ["exec", "tsx", "scripts/run-prisma-with-tls.mjs", ...args], { cwd: root, env: { ...process.env, DATABASE_URL: databaseUrl }, encoding: "utf8" });
-  return { command: `pnpm exec tsx scripts/run-prisma-with-tls.mjs ${args.join(" ")}`, exitCode: result.status ?? 1, stdout: result.stdout.trim(), stderr: result.stderr.trim() };
+  const result = spawnSync(process.execPath, [join(root, "node_modules/prisma/build/index.js"), ...args], { cwd: root, env: { ...process.env, DATABASE_URL: databaseUrl }, encoding: "utf8" });
+  return { command: `node prisma ${args.join(" ")}`, exitCode: result.status ?? 1, stdout: result.stdout.trim(), stderr: result.stderr.trim() };
 }
 
 async function retry<T>(operation: () => Promise<T>, attempts = 4): Promise<T> {
@@ -137,6 +150,8 @@ async function retry<T>(operation: () => Promise<T>, attempts = 4): Promise<T> {
 
 async function main() {
   if (!databaseUrl) throw new Error("DATABASE_URL is required.");
+  // Generate before querying: the native client library cannot be replaced while loaded on Windows.
+  const generation = prismaCommand(["generate", "--schema", "prisma/schema.prisma"]);
   const expected = blankExpected();
   const migrations = await migrationSources();
   for (const migration of migrations) applyMigration(migration.source, migration.name, expected);
@@ -211,7 +226,7 @@ async function main() {
   const unexpectedAppliedMigrations = history.filter((entry) => !migrations.some((migration) => migration.name === entry.migration_name)).map((entry) => entry.migration_name);
   const prismaCommands = {
     validate: prismaCommand(["validate", "--schema", "prisma/schema.prisma"]),
-    generate: prismaCommand(["generate", "--schema", "prisma/schema.prisma"]),
+    generate: generation,
     migrationStatus: prismaCommand(["migrate", "status", "--schema", "prisma/schema.prisma"]),
   };
   const drift = [expected.migrationChainErrors, missingAppliedMigrations, checksumMismatches, unexpectedAppliedMigrations, missingTables, unexpectedTables, missingColumns, unexpectedColumns, columnMismatches, missingIndexes, unexpectedIndexes, indexMismatches, missingForeignKeys, unexpectedForeignKeys, foreignKeyMismatches, missingChecks, unexpectedChecks, checkDefinitionMismatches, !checksEnabled && !manifestCheckPolicyPresent ? ["manifest CHECK policy missing"] : []].flat();

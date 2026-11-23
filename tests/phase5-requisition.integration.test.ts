@@ -51,7 +51,6 @@ async function cleanup() {
     await prisma.userRole.deleteMany({ where: { userId: user.id } });
     await prisma.user.delete({ where: { id: user.id } });
   }
-  await prisma.branchItemSupplier.deleteMany({ where: { branchItem: { branchId } } });
   await prisma.branchItem.deleteMany({ where: { branchId } });
   await prisma.itemUnit.deleteMany({ where: { item: { sku: { startsWith: `P5-SKU-${suffix}` } } } });
   await prisma.item.deleteMany({ where: { sku: { startsWith: `P5-SKU-${suffix}` } } });
@@ -81,7 +80,7 @@ beforeAll(async () => {
   const branchItem = await prisma.branchItem.create({ data: { branchId, itemId: item.id } });
   branchItemId = branchItem.id;
   const supplier = await prisma.supplier.create({ data: { supplierCode: `P5-SUP-${suffix}`, supplierName: "مورد طلب" } });
-  await prisma.branchItemSupplier.create({ data: { branchItemId, supplierId: supplier.id, isPrimary: true, activePrimaryBranchItemId: branchItemId, effectiveFrom: new Date() } });
+  await prisma.item.update({ where: { id: (await prisma.branchItem.findUniqueOrThrow({ where: { id: branchItemId } })).itemId }, data: { defaultSupplierId: supplier.id } });
   const owner = await prisma.user.create({ data: { username: `p5-owner-${suffix}`, email: `p5-owner-${suffix}@example.test`, passwordHash: await argon2.hash(password) } });
   ownerId = owner.id;
   await prisma.userRole.create({ data: { userId: owner.id, roleId: role.id } });

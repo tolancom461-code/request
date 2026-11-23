@@ -74,7 +74,6 @@ async function cleanup() {
     await prisma.userRole.deleteMany({ where: { userId: user.id } });
     await prisma.user.delete({ where: { id: user.id } });
   }
-  await prisma.branchItemSupplier.deleteMany({ where: { branchItem: { branchId } } });
   await prisma.branchItem.deleteMany({ where: { branchId } });
   await prisma.itemUnit.deleteMany({ where: { item: { sku: { startsWith: `P6-SKU-${suffix}` } } } });
   await prisma.item.deleteMany({ where: { sku: { startsWith: `P6-SKU-${suffix}` } } });
@@ -104,7 +103,7 @@ beforeAll(async () => {
   const branchItem = await prisma.branchItem.create({ data: { branchId, itemId: item.id } });
   branchItemId = branchItem.id;
   const supplier = await prisma.supplier.create({ data: { supplierCode: `P6-SUP-${suffix}`, supplierName: "مورد اللقطة" } });
-  await prisma.branchItemSupplier.create({ data: { branchItemId, supplierId: supplier.id, isPrimary: true, activePrimaryBranchItemId: branchItemId, effectiveFrom: new Date() } });
+  await prisma.item.update({ where: { id: (await prisma.branchItem.findUniqueOrThrow({ where: { id: branchItemId } })).itemId }, data: { defaultSupplierId: supplier.id } });
   const employee = await createUser("branch_employee", [branchId]);
   employeeId = employee.id;
   const manager = await createUser("branch_manager", [branchId]);
