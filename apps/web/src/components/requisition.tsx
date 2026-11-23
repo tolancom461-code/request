@@ -289,7 +289,7 @@ function CatalogImage({ item }: { item: CatalogItem }) {
       loading="lazy"
       onError={() => setFailed(true)}
       src={item.imageUrl}
-      sx={{ display: "block", height: 150, objectFit: "cover", width: "100%" }}
+      sx={{ display: "block", height: 150, objectFit: "contain", width: "100%" }}
     />
   );
 }
