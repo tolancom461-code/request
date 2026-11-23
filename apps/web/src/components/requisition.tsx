@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { notifySessionExpired } from "../session-events";
+import { notifyApiAccess } from "../session-events";
 import { Alert, Badge, Box, Button, Card, CardActionArea, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Paper, Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from "@mui/material";
 import AddShoppingCartOutlinedIcon from "@mui/icons-material/AddShoppingCartOutlined";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
@@ -23,7 +23,7 @@ type RequestList = { page: number; pageSize: number; total: number; data: Array<
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { credentials: "same-origin", ...init });
   const payload = await response.json().catch(() => null) as { message?: string } | T | null;
-  notifySessionExpired(response.status, payload);
+  notifyApiAccess(response.status, payload, init?.method);
   if (!response.ok) { const error = new Error(typeof payload === "object" && payload && "message" in payload ? String(payload.message) : `HTTP ${response.status}`) as ApiError; error.status = response.status; throw error; }
   return payload as T;
 }

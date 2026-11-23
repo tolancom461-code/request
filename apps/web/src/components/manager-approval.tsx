@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { notifySessionExpired } from "../session-events";
+import { notifyApiAccess } from "../session-events";
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Pagination, Paper, Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from "@mui/material";
 import AssignmentTurnedInOutlinedIcon from "@mui/icons-material/AssignmentTurnedInOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
@@ -20,7 +20,7 @@ type ReasonIntent = { kind: "exclude"; line: RequestLine } | { kind: "return" | 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { credentials: "same-origin", ...init });
   const payload = await response.json().catch(() => null) as { message?: string } | T | null;
-  notifySessionExpired(response.status, payload);
+  notifyApiAccess(response.status, payload, init?.method);
   if (!response.ok) { const error = new Error(typeof payload === "object" && payload && "message" in payload ? String(payload.message) : `HTTP ${response.status}`) as ApiError; error.status = response.status; throw error; }
   return payload as T;
 }
@@ -30,8 +30,11 @@ const localized = (value: { nameAr: string; nameEn: string; nameUr?: string | nu
 const time = (value: string | null, language: string) => value ? new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "—";
 const caughtMessage = (caught: unknown, fallback: string) => caught instanceof Error ? caught.message : fallback;
 
-export function ManagerApprovalPage({ online, path, onNavigate }: { online: boolean; path: string; onNavigate: (path: string) => void }) {
+export function ManagerApprovalPage({ online, path, onNavigate, permissions }: { online: boolean; path: string; onNavigate: (path: string) => void; permissions: readonly string[] }) {
   const { i18n, t } = useTranslation();
+  const canApprove = permissions.includes("request.approve");
+  const canReturn = permissions.includes("request.return");
+  const canReject = permissions.includes("request.reject");
   const reviewId = useMemo(() => /^#\/manager\/requisitions\/([0-9a-f-]{36})\/review$/i.exec(path)?.[1] ?? null, [path]);
   const [inbox, setInbox] = useState<Inbox | null>(null);
   const [detail, setDetail] = useState<ReviewDetail | null>(null);
@@ -84,6 +87,7 @@ export function ManagerApprovalPage({ online, path, onNavigate }: { online: bool
   };
   const confirmReason = async () => {
     if (!detail || !reasonIntent || !reason.trim() || !online) return;
+    if ((reasonIntent.kind === "return" && !canReturn) || (reasonIntent.kind === "reject" && !canReject)) return;
     setBusy(true);
     try {
       const result = reasonIntent.kind === "exclude"
@@ -94,7 +98,7 @@ export function ManagerApprovalPage({ online, path, onNavigate }: { online: bool
     } catch (caught) { handleError(caught, t("managerDecisionFailed")); } finally { setBusy(false); }
   };
   const approve = async () => {
-    if (!detail || !online) return;
+    if (!detail || !online || !canApprove) return;
     setBusy(true);
     try { await mutate<ReviewDetail>(`/api/v1/manager/requests/${detail.id}/approve`, "POST", { expectedRowVersion: detail.rowVersion }); setApproveOpen(false); onNavigate("#/manager/requisitions"); }
     catch (caught) { handleError(caught, t("managerDecisionFailed")); } finally { setBusy(false); }
@@ -117,7 +121,12 @@ export function ManagerApprovalPage({ online, path, onNavigate }: { online: bool
   const readOnly = detail.status !== "pending_approval";
   const reasonTitle = reasonIntent?.kind === "exclude" ? t("managerExcludeLine") : reasonIntent?.kind === "return" ? t("managerReturn") : t("managerReject");
   return <Box>
-    <PageHeader eyebrow="PHASE 6 · MANAGER REVIEW" title={`${t("managerReview")} · ${detail.requestNumber}`} description={`${detail.branch.code} · ${detail.creator.username} · ${time(detail.submittedAt, i18n.language)}`} actions={<Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}><Button onClick={() => onNavigate("#/manager/requisitions")} variant="text">{t("managerBackToInbox")}</Button>{!readOnly && <><Button color="error" disabled={busy} onClick={() => beginReason({ kind: "reject" })} startIcon={<CancelOutlinedIcon />} variant="outlined">{t("managerReject")}</Button><Button color="warning" disabled={busy} onClick={() => beginReason({ kind: "return" })} startIcon={<KeyboardReturnOutlinedIcon />} variant="outlined">{t("managerReturn")}</Button><BusyButton busy={busy} disabled={!activeLines.length} onClick={() => setApproveOpen(true)} startIcon={<AssignmentTurnedInOutlinedIcon />} variant="contained">{t("managerApprove")}</BusyButton></>}</Box>} />
+    <PageHeader eyebrow="PHASE 6 · MANAGER REVIEW" title={`${t("managerReview")} · ${detail.requestNumber}`} description={`${detail.branch.code} · ${detail.creator.username} · ${time(detail.submittedAt, i18n.language)}`} actions={<Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+      <Button onClick={() => onNavigate("#/manager/requisitions")} variant="text">{t("managerBackToInbox")}</Button>
+      {!readOnly && canReject && <Button color="error" disabled={busy} onClick={() => beginReason({ kind: "reject" })} startIcon={<CancelOutlinedIcon />} variant="outlined">{t("managerReject")}</Button>}
+      {!readOnly && canReturn && <Button color="warning" disabled={busy} onClick={() => beginReason({ kind: "return" })} startIcon={<KeyboardReturnOutlinedIcon />} variant="outlined">{t("managerReturn")}</Button>}
+      {!readOnly && canApprove && <BusyButton busy={busy} disabled={!activeLines.length} onClick={() => setApproveOpen(true)} startIcon={<AssignmentTurnedInOutlinedIcon />} variant="contained">{t("managerApprove")}</BusyButton>}
+    </Box>} />
     {!online && <Alert severity="warning" sx={{ mb: 2 }}>{t("managerOffline")}</Alert>}
     {error && <Alert onClose={() => setError(null)} severity={conflict ? "warning" : "error"} sx={{ mb: 2 }}>{conflict ? t("managerStale") : error}{conflict && <Button onClick={() => void loadDetail()} size="small">{t("refresh")}</Button>}</Alert>}
     {readOnly && <Alert severity="info" sx={{ mb: 2 }}>{t("managerReadOnly")}</Alert>}
@@ -126,7 +135,7 @@ export function ManagerApprovalPage({ online, path, onNavigate }: { online: bool
       <Box sx={{ display: "grid", gap: 2 }}><SectionCard title={t("managerRequestContext")}><Typography component="p"><strong>{t("branch")}:</strong> {detail.branch.code} · {localized({ nameAr: detail.branch.nameAr, nameEn: detail.branch.nameEn }, i18n.language)}</Typography><Typography component="p" sx={{ mt: 1 }}><strong>{t("creator")}:</strong> {detail.creator.username}</Typography><Typography component="p" sx={{ mt: 1 }}><strong>{t("submittedAt")}:</strong> {time(detail.submittedAt, i18n.language)}</Typography><Typography component="p" sx={{ mt: 1 }}><strong>{t("managerRowVersion")}:</strong> {detail.rowVersion}</Typography></SectionCard><SectionCard title={t("managerDecisionHistory")}>{!detail.statusHistory.length ? <EmptyState title={t("managerHistoryEmpty")} message={t("managerHistoryEmptyDescription")} /> : <Box sx={{ display: "grid", gap: 1 }}>{detail.statusHistory.map((entry) => <Paper key={entry.id} variant="outlined" sx={{ p: 1.25 }}><Typography sx={{ fontWeight: 800 }} variant="body2">{entry.fromStatus ? t(entry.fromStatus) : "—"} → {t(entry.toStatus)}</Typography><Typography color="text.secondary" variant="caption">{entry.actor?.username ?? t("managerSystemActor")} · {time(entry.occurredAt, i18n.language)}</Typography>{entry.reason && <Typography variant="body2" sx={{ mt: .5 }}>{entry.reason}</Typography>}</Paper>)}</Box>}</SectionCard></Box>
     </Box>
     {editing && <Dialog fullWidth maxWidth="xs" onClose={() => setEditing(null)} open><DialogTitle>{t("managerEditLine")}</DialogTitle><DialogContent><Box sx={{ display: "grid", gap: 2, pt: 1 }}><Typography sx={{ fontWeight: 800 }}>{localized(editing.item, i18n.language)}</Typography><TextField label={t("quantity")} onChange={(event) => setQuantity(event.target.value)} required type="number" value={quantity} /><FormControl><InputLabel id="manager-unit">{t("unit")}</InputLabel><Select label={t("unit")} labelId="manager-unit" onChange={(event) => setUnitId(event.target.value)} value={unitId}>{units.map((unit) => <MenuItem key={unit.id} value={unit.id}>{unit.code} · {localized({ nameAr: unit.nameAr, nameEn: unit.nameEn }, i18n.language)}</MenuItem>)}</Select></FormControl></Box></DialogContent><DialogActions><Button onClick={() => setEditing(null)}>{t("cancel")}</Button><BusyButton busy={busy} disabled={!unitId || Number(quantity) <= 0} onClick={() => void saveLine()} variant="contained">{t("save")}</BusyButton></DialogActions></Dialog>}
-    {reasonIntent && <Dialog fullWidth maxWidth="xs" onClose={() => setReasonIntent(null)} open><DialogTitle>{reasonTitle}</DialogTitle><DialogContent><Typography color="text.secondary">{t(reasonIntent.kind === "exclude" ? "managerExcludeReasonHint" : "managerDecisionReasonHint")}</Typography><TextField autoFocus fullWidth label={t("managerReason")} multiline minRows={3} onChange={(event) => setReason(event.target.value)} required sx={{ mt: 2 }} value={reason} /></DialogContent><DialogActions><Button onClick={() => setReasonIntent(null)}>{t("cancel")}</Button><BusyButton busy={busy} color={reasonIntent.kind === "reject" ? "error" : "primary"} disabled={!reason.trim()} onClick={() => void confirmReason()} variant="contained">{t("confirm")}</BusyButton></DialogActions></Dialog>}
-    {approveOpen && <Dialog fullWidth maxWidth="xs" onClose={() => setApproveOpen(false)} open><DialogTitle>{t("managerApprove")}</DialogTitle><DialogContent><Typography>{t("managerApproveNotice")}</Typography></DialogContent><DialogActions><Button onClick={() => setApproveOpen(false)}>{t("cancel")}</Button><BusyButton busy={busy} onClick={() => void approve()} variant="contained">{t("confirm")}</BusyButton></DialogActions></Dialog>}
+    {reasonIntent && (reasonIntent.kind === "exclude" || (reasonIntent.kind === "return" ? canReturn : canReject)) && <Dialog fullWidth maxWidth="xs" onClose={() => setReasonIntent(null)} open><DialogTitle>{reasonTitle}</DialogTitle><DialogContent><Typography color="text.secondary">{t(reasonIntent.kind === "exclude" ? "managerExcludeReasonHint" : "managerDecisionReasonHint")}</Typography><TextField autoFocus fullWidth label={t("managerReason")} multiline minRows={3} onChange={(event) => setReason(event.target.value)} required sx={{ mt: 2 }} value={reason} /></DialogContent><DialogActions><Button onClick={() => setReasonIntent(null)}>{t("cancel")}</Button><BusyButton busy={busy} color={reasonIntent.kind === "reject" ? "error" : "primary"} disabled={!reason.trim()} onClick={() => void confirmReason()} variant="contained">{t("confirm")}</BusyButton></DialogActions></Dialog>}
+    {approveOpen && canApprove && <Dialog fullWidth maxWidth="xs" onClose={() => setApproveOpen(false)} open><DialogTitle>{t("managerApprove")}</DialogTitle><DialogContent><Typography>{t("managerApproveNotice")}</Typography></DialogContent><DialogActions><Button onClick={() => setApproveOpen(false)}>{t("cancel")}</Button><BusyButton busy={busy} onClick={() => void approve()} variant="contained">{t("confirm")}</BusyButton></DialogActions></Dialog>}
   </Box>;
 }

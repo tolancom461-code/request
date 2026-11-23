@@ -3,6 +3,7 @@ import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 import { NotificationService } from "./notification.service.js";
 import type { SessionRecord } from "./session.service.js";
+import { Permissions } from "./security.js";
 
 type RequestWithSession = FastifyRequest & { restaurantSession?: SessionRecord };
 const id = z.string().uuid();
@@ -14,6 +15,7 @@ const list = z.object({
 });
 
 @Controller("notifications")
+@Permissions()
 export class NotificationController {
   constructor(@Inject(NotificationService) private readonly notifications: NotificationService) {}
   private user(request: RequestWithSession) { return request.restaurantSession!.userId; }

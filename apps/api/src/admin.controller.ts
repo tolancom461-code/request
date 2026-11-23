@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import { RecordStatus } from "@prisma/client";
 import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 import { AdminService, type ListQuery } from "./admin.service.js";
-import { Permissions, PermissionsGuard } from "./security.js";
+import { Permissions } from "./security.js";
 import type { SessionRecord } from "./session.service.js";
 
 type RequestWithSession = FastifyRequest & { restaurantSession?: SessionRecord };
@@ -32,7 +32,6 @@ const idsSchema = z.object({ ids: z.array(idSchema).max(500) });
 const passwordSchema = z.object({ password: z.string().min(12).max(256) });
 
 @Controller("admin")
-@UseGuards(PermissionsGuard)
 @Permissions("admin.manage")
 export class AdminController {
   constructor(@Inject(AdminService) private readonly admin: AdminService) {}

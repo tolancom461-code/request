@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { resolveWorkspaceAccess } from "../apps/web/src/workspace-access.ts";
 
 const root = resolve(import.meta.dirname, "..");
 const read = (path: string) => readFileSync(resolve(root, path), "utf8");
@@ -8,9 +9,9 @@ const read = (path: string) => readFileSync(resolve(root, path), "utf8");
 describe("Phase 4 items administration UI contract", () => {
   it("registers the protected Items navigation and production workspace route", () => {
     const app = read("apps/web/src/App.tsx");
-    expect(app).toContain('href="#/admin/items"');
-    expect(app).toContain('path === "#/admin/items" ? <ItemsPage');
-    expect(app).toContain('user.permissions?.includes("admin.manage")');
+    expect(app).toContain("<ItemsPage");
+    expect(resolveWorkspaceAccess("#/admin/items", ["admin.manage"]).activeRoute?.view).toBe("items");
+    expect(resolveWorkspaceAccess("#/admin/items", ["reports.view"]).path).toBe("#dashboard");
   });
 
   it("renders item-first setup with supplier selection before restaurant assignment", () => {

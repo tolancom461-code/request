@@ -1,9 +1,9 @@
-import { BadRequestException, Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import { RecordStatus } from "@prisma/client";
 import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 import { ItemsService, type ItemListQuery } from "./items.service.js";
-import { Permissions, PermissionsGuard } from "./security.js";
+import { Permissions } from "./security.js";
 import type { SessionRecord } from "./session.service.js";
 
 type RequestWithSession = FastifyRequest & { restaurantSession?: SessionRecord };
@@ -17,7 +17,6 @@ const querySchema = z.object({ page: z.coerce.number().int().min(1).default(1), 
 const patch = <T extends z.ZodRawShape>(shape: T) => z.object(shape).partial().refine((value) => Object.keys(value).length > 0, "At least one field is required.");
 
 @Controller("admin/items")
-@UseGuards(PermissionsGuard)
 @Permissions("admin.manage")
 export class ItemsController {
   constructor(@Inject(ItemsService) private readonly items: ItemsService) {}

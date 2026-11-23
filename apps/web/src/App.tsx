@@ -60,9 +60,9 @@ import {
   StatusChip,
 } from "./components/foundation";
 import { resolveLocale } from "./theme";
-import { notifySessionExpired, SESSION_EXPIRED_EVENT } from "./session-events";
+import { notifySessionExpired, PAGE_PERMISSION_DENIED_EVENT, SESSION_EXPIRED_EVENT } from "./session-events";
 import { brand } from "./brand";
-import { adminNavigation } from "./components/admin-navigation";
+import { resolveWorkspaceAccess } from "./workspace-access";
 import { AuditActivityWorkspace, Phase8NotificationButton } from "./components/notifications-audit";
 
 const AdministrationWorkspace = lazy(async () => ({ default: (await import("./components/admin")).AdministrationWorkspace }));
@@ -82,6 +82,16 @@ type AuthState = "checking" | "anonymous" | "authenticated" | "error";
 type SessionUser = { id: string; username: string; email: string | null; permissions?: string[] };
 
 const drawerWidth = 292;
+const workspaceIcons = {
+  dashboard: DashboardOutlinedIcon,
+  requisitions: ShoppingCartOutlinedIcon,
+  manager: AssignmentTurnedInOutlinedIcon,
+  warehouse: WarehouseOutlinedIcon,
+  reports: AssessmentOutlinedIcon,
+  items: SettingsOutlinedIcon,
+  audit: HistoryOutlinedIcon,
+  admin: SettingsOutlinedIcon,
+};
 
 async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { credentials: "same-origin", ...init });
@@ -168,29 +178,27 @@ function ApplicationShell({ user, sessionError, onRetry, onLogout }: { user: Ses
   const [scopeOpen, setScopeOpen] = useState(false);
   const [languageAnchor, setLanguageAnchor] = useState<HTMLElement | null>(null);
   const [accountAnchor, setAccountAnchor] = useState<HTMLElement | null>(null);
-  const [path, setPath] = useState(() => window.location.hash || "#dashboard");
+  const [requestedPath, setRequestedPath] = useState(() => window.location.hash);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [apiState, setApiState] = useState<ApiState>("checking");
   const [lastChecked, setLastChecked] = useState("");
   const locale = resolveLocale(i18n.language);
-  const canManage = user.permissions?.includes("admin.manage") ?? false;
-  const canRequest = user.permissions?.includes("request.submit") ?? false;
-  const canReview = user.permissions?.includes("request.review") ?? false;
-  const canWarehouse = user.permissions?.includes("warehouse.process") ?? false;
-  const canReports = user.permissions?.includes("reports.view") ?? false;
-  const canExportReports = user.permissions?.includes("reports.export") ?? false;
-  const isAdminRoute = path.startsWith("#/admin/");
-  const isRequisitionRoute = path === "#/requisitions";
-  const isManagerRoute = path.startsWith("#/manager/requisitions");
-  const isWarehouseRoute = path.startsWith("#/warehouse/requests");
-  const isAuditRoute = path === "#/admin/audit" || path.startsWith("#/admin/user-activity");
-  const isReportsRoute = path === "#/reports" || path.startsWith("#/reports/");
+  const permissions = user.permissions ?? [];
+  const { allowedRoutes, activeRoute, path } = resolveWorkspaceAccess(requestedPath, permissions);
+  const title = t(activeRoute?.key ?? "workspace");
+  const serviceOnline = online && apiState !== "unavailable";
 
   useEffect(() => {
-    const syncPath = () => setPath(window.location.hash || "#dashboard");
+    const syncPath = () => setRequestedPath(window.location.hash);
     window.addEventListener("hashchange", syncPath);
     return () => window.removeEventListener("hashchange", syncPath);
   }, []);
+
+  useEffect(() => {
+    if (!path || requestedPath === path || window.location.hash !== requestedPath) return;
+    window.history.replaceState(window.history.state, "", path);
+    setRequestedPath(path);
+  }, [path, requestedPath]);
 
   const checkApi = useCallback(async () => {
     if (!navigator.onLine) { setApiState("unavailable"); return; }
@@ -211,6 +219,25 @@ function ApplicationShell({ user, sessionError, onRetry, onLogout }: { user: Ses
     return () => { window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); };
   }, [checkApi]);
 
+  const renderNavigation = (administration: boolean) => allowedRoutes
+    .filter(route => Boolean(route.administration) === administration)
+    .map(route => {
+      const Icon = workspaceIcons[route.view];
+      return (
+        <ListItemButton
+          component="a"
+          href={route.path}
+          key={route.path}
+          selected={activeRoute === route}
+          onClick={() => setDrawerOpen(false)}
+          sx={{ borderRadius: 2, minHeight: 48 }}
+        >
+          <ListItemIcon><Icon color="primary" /></ListItemIcon>
+          <ListItemText primary={t(route.key)} />
+        </ListItemButton>
+      );
+    });
+
   useEffect(() => {
     void checkApi();
     const timer = window.setInterval(() => void checkApi(), 30_000);
@@ -225,20 +252,10 @@ function ApplicationShell({ user, sessionError, onRetry, onLogout }: { user: Ses
       </Toolbar>
       <Divider />
       <List component="nav" aria-label={t("navigation")} sx={{ px: 1, py: 1.5 }}>
-        <ListItemButton component="a" href="#dashboard" selected={!isAdminRoute && !isRequisitionRoute && !isManagerRoute && !isWarehouseRoute && !isReportsRoute} onClick={() => setDrawerOpen(false)} sx={{ borderRadius: 2, minHeight: 48 }}>
-          <ListItemIcon><DashboardOutlinedIcon color="primary" /></ListItemIcon>
-          <ListItemText primary={t("dashboard")} />
-        </ListItemButton>
-        {canRequest && <ListItemButton component="a" href="#/requisitions" onClick={() => setDrawerOpen(false)} selected={isRequisitionRoute} sx={{ borderRadius: 2, minHeight: 48 }}><ListItemIcon><ShoppingCartOutlinedIcon color="primary" /></ListItemIcon><ListItemText primary={t("requisitions")} /></ListItemButton>}
-        {canReview && <ListItemButton component="a" href="#/manager/requisitions" onClick={() => setDrawerOpen(false)} selected={isManagerRoute} sx={{ borderRadius: 2, minHeight: 48 }}><ListItemIcon><AssignmentTurnedInOutlinedIcon color="primary" /></ListItemIcon><ListItemText primary={t("managerInbox")} /></ListItemButton>}
-        {canWarehouse && <ListItemButton component="a" href="#/warehouse/requests" onClick={() => setDrawerOpen(false)} selected={isWarehouseRoute} sx={{ borderRadius: 2, minHeight: 48 }}><ListItemIcon><WarehouseOutlinedIcon color="primary" /></ListItemIcon><ListItemText primary={t("warehouseQueue")} /></ListItemButton>}
-        {canReports && <ListItemButton component="a" href="#/reports" onClick={() => setDrawerOpen(false)} selected={isReportsRoute} sx={{ borderRadius: 2, minHeight: 48 }}><ListItemIcon><AssessmentOutlinedIcon color="primary" /></ListItemIcon><ListItemText primary={t("reports")} /></ListItemButton>}
-        {canManage && <>
+        {renderNavigation(false)}
+        {allowedRoutes.some(route => route.administration) && <>
           <Typography color="text.secondary" sx={{ px: 2, pt: 2 }} variant="overline">{t("administration")}</Typography>
-          <ListItemButton component="a" href="#/admin/items" onClick={() => setDrawerOpen(false)} selected={path === "#/admin/items"} sx={{ borderRadius: 2, minHeight: 48 }}><ListItemIcon><SettingsOutlinedIcon color="primary" /></ListItemIcon><ListItemText primary={t("items")} /></ListItemButton>
-          <ListItemButton component="a" href="#/admin/audit" onClick={() => setDrawerOpen(false)} selected={isAuditRoute} sx={{ borderRadius: 2, minHeight: 48 }}><ListItemIcon><HistoryOutlinedIcon color="primary" /></ListItemIcon><ListItemText primary={t("auditLog")} /></ListItemButton>
-          <ListItemButton component="a" href="#/admin/user-activity" onClick={() => setDrawerOpen(false)} selected={path.startsWith("#/admin/user-activity")} sx={{ borderRadius: 2, minHeight: 48 }}><ListItemIcon><HistoryOutlinedIcon color="primary" /></ListItemIcon><ListItemText primary={t("userActivity")} /></ListItemButton>
-          {adminNavigation.map((item) => <ListItemButton component="a" href={item.path} key={item.path} onClick={() => setDrawerOpen(false)} selected={path === item.path} sx={{ borderRadius: 2, minHeight: 48 }}><ListItemIcon><SettingsOutlinedIcon color="primary" /></ListItemIcon><ListItemText primary={t(item.key)} /></ListItemButton>)}
+          {renderNavigation(true)}
         </>}
       </List>
       <Box sx={{ mt: "auto", p: 2 }}>
@@ -262,10 +279,10 @@ function ApplicationShell({ user, sessionError, onRetry, onLogout }: { user: Ses
           {compact && <IconButton aria-label={t("navigation")} color="primary" onClick={() => setDrawerOpen(true)}><MenuIcon /></IconButton>}
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Typography component="p" color="text.secondary" variant="caption">{t("workspace")}</Typography>
-            <Typography component="h1" noWrap variant="h6" sx={{ fontWeight: 800 }}>{isReportsRoute ? t("reports") : isAuditRoute ? (path.startsWith("#/admin/user-activity") ? t("userActivity") : t("auditLog")) : isAdminRoute ? t("administration") : isWarehouseRoute ? t("warehouseQueue") : isManagerRoute ? t("managerInbox") : isRequisitionRoute ? t("requisitions") : t("dashboard")}</Typography>
+            <Typography component="h1" noWrap variant="h6" sx={{ fontWeight: 800 }}>{title}</Typography>
           </Box>
-          <StatusChip online={online && apiState !== "unavailable"} label={online && apiState !== "unavailable" ? t("onlineStatus") : t("offlineStatus")} />
-          <Phase8NotificationButton online={online && apiState !== "unavailable"} />
+          <StatusChip online={serviceOnline} label={serviceOnline ? t("onlineStatus") : t("offlineStatus")} />
+          <Phase8NotificationButton online={serviceOnline} />
           <IconButton aria-label={t("language")} color="primary" onClick={(event) => setLanguageAnchor(event.currentTarget)}><LanguageOutlinedIcon /></IconButton>
           <IconButton aria-label={t("account")} onClick={(event) => setAccountAnchor(event.currentTarget)}><Avatar sx={{ bgcolor: "primary.dark", height: 34, width: 34 }}>{user.username.slice(0, 1).toUpperCase()}</Avatar></IconButton>
         </Toolbar>
@@ -275,11 +292,34 @@ function ApplicationShell({ user, sessionError, onRetry, onLogout }: { user: Ses
       <PageContainer>
         <Toolbar />
         <Box id="dashboard" sx={{ maxWidth: 1220, mx: "auto" }}>
-          <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography color="text.secondary" variant="body2">{t("workspace")}</Typography><Typography color="text.primary" variant="body2">{isReportsRoute ? t("reports") : isAuditRoute ? (path.startsWith("#/admin/user-activity") ? t("userActivity") : t("auditLog")) : isAdminRoute ? t("administration") : isWarehouseRoute ? t("warehouseQueue") : isManagerRoute ? t("managerInbox") : isRequisitionRoute ? t("requisitions") : t("dashboard")}</Typography></Breadcrumbs>
+          {activeRoute && <Breadcrumbs aria-label="breadcrumb" sx={{ mb: 2 }}><Typography color="text.secondary" variant="body2">{t("workspace")}</Typography><Typography color="text.primary" variant="body2">{title}</Typography></Breadcrumbs>}
           {!online && <OfflineNotice message={t("offlineBanner")} />}
           {needRefresh && <Alert action={<Button color="inherit" onClick={() => void updateServiceWorker(true)} size="small">{t("refresh")}</Button>} role="status" severity="info" sx={{ mb: 2 }}>{t("updateAvailable")}</Alert>}
           <Suspense fallback={<RouteLoading />}>
-          {sessionError ? <SectionCard><ErrorState action={<Button onClick={onRetry} startIcon={<RefreshOutlinedIcon />} variant="outlined">{t("retry")}</Button>} message={sessionError} title={t("sessionError")} /></SectionCard> : isReportsRoute ? (canReports ? <ReportsDashboardPage canExport={canExportReports} online={online && apiState !== "unavailable"} path={path} /> : <SectionCard><ErrorState message={t("report.loadFailed")} title={t("reports")} /></SectionCard>) : isAuditRoute ? (canManage ? <AuditActivityWorkspace online={online && apiState !== "unavailable"} path={path} /> : <SectionCard><ErrorState message={t("adminAccessDenied")} title={t("administration")} /></SectionCard>) : isAdminRoute ? (canManage ? (path === "#/admin/items" ? <ItemsPage online={online && apiState !== "unavailable"} /> : <AdministrationWorkspace online={online && apiState !== "unavailable"} path={path} />) : <SectionCard><ErrorState message={t("adminAccessDenied")} title={t("administration")} /></SectionCard>) : isWarehouseRoute ? (canWarehouse ? <WarehouseOperationsPage online={online && apiState !== "unavailable"} onNavigate={(next) => { window.location.hash = next; }} path={path} /> : <SectionCard><ErrorState message={t("warehouseAccessDenied")} title={t("warehouseQueue")} /></SectionCard>) : isManagerRoute ? (canReview ? <ManagerApprovalPage online={online && apiState !== "unavailable"} onNavigate={(next) => { window.location.hash = next; }} path={path} /> : <SectionCard><ErrorState message={t("managerAccessDenied")} title={t("managerInbox")} /></SectionCard>) : isRequisitionRoute ? (canRequest ? <RequisitionPage online={online && apiState !== "unavailable"} /> : <SectionCard><ErrorState message={t("requisitionAccessDenied")} title={t("requisitions")} /></SectionCard>) : (
+          {renderWorkspace()}
+          </Suspense>
+        </Box>
+      </PageContainer>
+      </Box>
+      <LanguageMenu anchor={languageAnchor} onClose={() => setLanguageAnchor(null)} />
+      <Menu anchorEl={accountAnchor} open={Boolean(accountAnchor)} onClose={() => setAccountAnchor(null)}><MenuItem disabled>{user.email}</MenuItem><MenuItem onClick={() => { setAccountAnchor(null); void onLogout(); }}><ListItemIcon><LogoutOutlinedIcon fontSize="small" /></ListItemIcon>{t("signOut")}</MenuItem></Menu>
+      <ScopeDialog closeLabel={t("close")} description={t("scopeDialogDescription")} onClose={() => setScopeOpen(false)} open={scopeOpen} title={t("scopeDialogTitle")} />
+    </Box>
+  );
+
+  function renderWorkspace() {
+    if (sessionError) return <SectionCard><ErrorState action={<Button onClick={onRetry} startIcon={<RefreshOutlinedIcon />} variant="outlined">{t("retry")}</Button>} message={sessionError} title={t("sessionError")} /></SectionCard>;
+    if (!activeRoute || !path) return <SectionCard><ErrorState message={t("noWorkspaceAccessDescription")} title={t("noWorkspaceAccess")} /></SectionCard>;
+    const navigate = (next: string) => { window.location.hash = next; };
+    switch (activeRoute.view) {
+      case "requisitions": return <RequisitionPage online={serviceOnline} />;
+      case "manager": return <ManagerApprovalPage online={serviceOnline} onNavigate={navigate} path={path} permissions={permissions} />;
+      case "warehouse": return <WarehouseOperationsPage online={serviceOnline} onNavigate={navigate} path={path} />;
+      case "reports": return <ReportsDashboardPage canExport={permissions.includes("reports.export")} online={serviceOnline} path={path} />;
+      case "items": return <ItemsPage online={serviceOnline} />;
+      case "audit": return <AuditActivityWorkspace online={serviceOnline} path={path} />;
+      case "admin": return <AdministrationWorkspace online={serviceOnline} path={path} />;
+      case "dashboard": return (
             <>
               <PageHeader actions={<Button onClick={() => setScopeOpen(true)} variant="outlined">{t("viewScope")}</Button>} description={t("welcomeDescription")} eyebrow="PHASE 2C · T3 + I1" title={t("welcome", { name: user.username })} />
               <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1.4fr 1fr" } }}>
@@ -299,16 +339,9 @@ function ApplicationShell({ user, sessionError, onRetry, onLogout }: { user: Ses
               <Box sx={{ mt: 2 }}><SectionCard><EmptyState message={t("noModulesDescription")} title={t("noModules")} /></SectionCard></Box>
               <Box sx={{ mt: 2 }}><SectionCard title={t("foundation")}><TableContainer><Table aria-label={t("foundation")} size="small"><TableHead><TableRow><TableCell>{t("scope")}</TableCell><TableCell>{t("connectivity")}</TableCell></TableRow></TableHead><TableBody><TableRow><TableCell>{t("scopeText")}</TableCell><TableCell><Chip color={online ? "success" : "warning"} label={online ? t("onlineStatus") : t("offlineStatus")} size="small" /></TableCell></TableRow></TableBody></Table></TableContainer></SectionCard></Box>
             </>
-          )}
-          </Suspense>
-        </Box>
-      </PageContainer>
-      </Box>
-      <LanguageMenu anchor={languageAnchor} onClose={() => setLanguageAnchor(null)} />
-      <Menu anchorEl={accountAnchor} open={Boolean(accountAnchor)} onClose={() => setAccountAnchor(null)}><MenuItem disabled>{user.email}</MenuItem><MenuItem onClick={() => { setAccountAnchor(null); void onLogout(); }}><ListItemIcon><LogoutOutlinedIcon fontSize="small" /></ListItemIcon>{t("signOut")}</MenuItem></Menu>
-      <ScopeDialog closeLabel={t("close")} description={t("scopeDialogDescription")} onClose={() => setScopeOpen(false)} open={scopeOpen} title={t("scopeDialogTitle")} />
-    </Box>
-  );
+      );
+    }
+  }
 }
 
 export function App() {
@@ -327,7 +360,7 @@ export function App() {
       if (response.status === 401 || response.status === 403) { setUser(null); setState("anonymous"); return; }
       if (!response.ok) throw new Error("session unavailable");
       const result = (await response.json()) as { user: SessionUser | null };
-      if (!result.user) { setState("anonymous"); return; }
+      if (!result.user) { setUser(null); setState("anonymous"); return; }
       setUser(result.user);
       setState("authenticated");
     } catch {
@@ -348,12 +381,49 @@ export function App() {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, expired);
   }, []);
 
+  useEffect(() => {
+    if (state !== "authenticated") return;
+    let pending: AbortController | null = null;
+    const refreshAccess = async () => {
+      if (pending) return;
+      const controller = new AbortController();
+      pending = controller;
+      try {
+        const response = await fetch("/api/v1/auth/me", { cache: "no-store", credentials: "same-origin", signal: controller.signal });
+        if (controller.signal.aborted) return;
+        if (response.status === 401 || response.status === 403) {
+          window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+        } else if (response.ok) {
+          const { user: updatedUser } = await response.json() as { user: SessionUser | null };
+          if (!controller.signal.aborted && updatedUser) {
+            setUser(current => current?.id === updatedUser.id ? updatedUser : current);
+          }
+        }
+      } catch {
+        // The page continues to show its own error if the refresh fails.
+      } finally {
+        pending = null;
+      }
+    };
+    window.addEventListener(PAGE_PERMISSION_DENIED_EVENT, refreshAccess);
+    return () => {
+      window.removeEventListener(PAGE_PERMISSION_DENIED_EVENT, refreshAccess);
+      pending?.abort();
+    };
+  }, [state]);
+
   const submitLogin = async (username: string, password: string) => {
     setSubmitting(true);
     setLoginError(null);
     try {
-      await getJson<{ user: SessionUser }>("/api/v1/auth/login", { body: JSON.stringify({ username, password }), headers: { "Content-Type": "application/json" }, method: "POST" });
-      await loadSession();
+      const result = await getJson<{ user: SessionUser }>("/api/v1/auth/login", { body: JSON.stringify({ username, password }), headers: { "Content-Type": "application/json" }, method: "POST" });
+      if (Array.isArray(result?.user?.permissions)) {
+        setSessionError(null);
+        setUser(result.user);
+        setState("authenticated");
+      } else {
+        await loadSession();
+      }
     } catch {
       setLoginError("invalidCredentials");
     } finally {

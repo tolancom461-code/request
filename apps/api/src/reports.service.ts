@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Inject, Injectable } from "@ne
 import { Prisma, RequestLineStatus, RequestStatus } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { PrismaService } from "./prisma.service.js";
-import { BranchScopeService } from "./security.js";
+import { BranchScopeService, type BranchScope } from "./security.js";
 
 export type ReportInput = {
   from: Date;
@@ -18,7 +18,7 @@ export type ReportInput = {
 
 export type ExportReport = "requests" | "branches" | "items" | "suppliers" | "status-lifecycle" | "approvals" | "warehouse";
 
-type Scope = { isSystemAdmin: boolean; branchIds: string[] };
+type Scope = BranchScope;
 type History = { requestId?: string; toStatus: RequestStatus; fromStatus?: RequestStatus | null; occurredAt: Date };
 const statuses = Object.values(RequestStatus);
 const terminal = new Set<RequestStatus>([RequestStatus.completed, RequestStatus.rejected]);
@@ -36,12 +36,8 @@ export class ReportsService {
     @Inject(BranchScopeService) private readonly branchScopes: BranchScopeService,
   ) {}
 
-  private async scopeFor(userId: string, requestedBranchId?: string): Promise<Scope> {
-    const isSystemAdmin = Boolean(await this.prisma.userRole.findFirst({ where: { userId, role: { code: "system_admin" } }, select: { userId: true } }));
-    if (requestedBranchId) await this.branchScopes.assertAllowed(userId, requestedBranchId);
-    if (isSystemAdmin) return { isSystemAdmin, branchIds: [] };
-    const branchIds = (await this.prisma.userBranchScope.findMany({ where: { userId }, select: { branchId: true } })).map((entry) => entry.branchId);
-    return { isSystemAdmin, branchIds };
+  private scopeFor(userId: string, requestedBranchId?: string): Promise<Scope> {
+    return this.branchScopes.scopeFor(userId, requestedBranchId);
   }
 
   private assertPeriod(input: ReportInput) {

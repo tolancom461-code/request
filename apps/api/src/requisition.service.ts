@@ -67,8 +67,8 @@ export class RequisitionService {
   }
 
   async branches(userId: string) {
-    const admin = await this.prisma.userRole.findFirst({ where: { userId, role: { code: "system_admin" } } });
-    const rows = await this.prisma.branch.findMany({ where: admin ? { status: RecordStatus.active } : { status: RecordStatus.active, scopes: { some: { userId } } }, orderBy: { code: "asc" } });
+    const scope = await this.branchScopes.scopeFor(userId);
+    const rows = await this.prisma.branch.findMany({ where: { status: RecordStatus.active, ...(scope.isSystemAdmin ? {} : { id: { in: scope.branchIds } }) }, orderBy: { code: "asc" } });
     return rows.map((branch) => ({ id: branch.id, code: branch.code, nameAr: branch.nameAr, nameEn: branch.nameEn }));
   }
 
@@ -196,11 +196,15 @@ export class RequisitionService {
     }, { maxWait: 10_000, timeout: 60_000 });
   }
 
-  async submit(userId: string, requestId: string, expectedRowVersion?: number) {
+  async submitDraft(userId: string, requestId: string, expectedRowVersion?: number) {
     const request = await this.assertOwnedRequest(userId, requestId);
     if (request.status !== RequestStatus.draft) throw new BadRequestException("Only a draft may be submitted.");
     if (expectedRowVersion !== undefined && request.rowVersion !== expectedRowVersion) throw new ConflictException("Draft changed concurrently; reload it before submitting.");
-    await this.submissions.submitFirstTime(requestId, userId);
+    return this.submissions.submitFirstTime(requestId, userId);
+  }
+
+  async submit(userId: string, requestId: string, expectedRowVersion?: number) {
+    await this.submitDraft(userId, requestId, expectedRowVersion);
     return this.requestDetail(userId, requestId);
   }
 
@@ -227,9 +231,11 @@ export class RequisitionService {
   }
 
   async myRequests(userId: string, input: ListInput) {
+    const scope = await this.branchScopes.scopeFor(userId);
+    const where = { createdByUserId: userId, ...(scope.isSystemAdmin ? {} : { branchId: { in: scope.branchIds } }) };
     const [total, rows] = await this.prisma.$transaction([
-      this.prisma.requestRecord.count({ where: { createdByUserId: userId } }),
-      this.prisma.requestRecord.findMany({ where: { createdByUserId: userId }, include: { branch: true, _count: { select: { items: { where: { lineStatus: "active" } } } } }, orderBy: { updatedAt: "desc" }, skip: (input.page - 1) * input.pageSize, take: input.pageSize }),
+      this.prisma.requestRecord.count({ where }),
+      this.prisma.requestRecord.findMany({ where, include: { branch: true, _count: { select: { items: { where: { lineStatus: "active" } } } } }, orderBy: { updatedAt: "desc" }, skip: (input.page - 1) * input.pageSize, take: input.pageSize }),
     ]);
     return { page: input.page, pageSize: input.pageSize, total, data: rows.map((row) => ({ id: row.id, requestNumber: row.requestNumber, branch: { id: row.branch.id, code: row.branch.code, nameAr: row.branch.nameAr, nameEn: row.branch.nameEn }, status: row.status, submittedAt: row.submittedAt, activeLineCount: row._count.items, rowVersion: row.rowVersion })) };
   }

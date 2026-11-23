@@ -8,12 +8,11 @@ import {
   Patch,
   Post,
   Req,
-  UseGuards,
 } from "@nestjs/common";
 import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 import { ItemSetupService, type SetupImage } from "./item-setup.service.js";
-import { Permissions, PermissionsGuard } from "./security.js";
+import { Permissions } from "./security.js";
 import type { SessionRecord } from "./session.service.js";
 
 type RequestWithSession = FastifyRequest & {
@@ -33,7 +32,6 @@ const itemSchema = z.object({
 });
 
 @Controller("admin/item-setup")
-@UseGuards(PermissionsGuard)
 @Permissions("admin.manage")
 export class ItemSetupController {
   constructor(

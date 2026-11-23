@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpException, HttpStatus, Inject, Injectable, Module, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpException, HttpStatus, Inject, Injectable, Module, Param, Post, Req, Res } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
@@ -16,8 +16,8 @@ import { ItemSetupService } from "./item-setup.service.js";
 import { ItemSupplierService } from "./item-supplier.service.js";
 import { DocumentNumberingService } from "./document-numbering.service.js";
 import { DocumentNumberingController } from "./document-numbering.controller.js";
-import { BranchScopeService, CsrfGuard, Permissions, PermissionsGuard, Public, SessionGuard } from "./security.js";
-import { SessionService, type SessionRecord } from "./session.service.js";
+import { AccessGuard, AccessService, BranchScopeService, Permissions, Public, type AuthenticatedRequest, type UserAccess } from "./security.js";
+import { SessionService } from "./session.service.js";
 import { StorageService } from "./storage.service.js";
 import { RequisitionController } from "./requisition.controller.js";
 import { RequisitionService } from "./requisition.service.js";
@@ -32,8 +32,6 @@ import { AuditActivityService } from "./audit-activity.service.js";
 import { ReportsController } from "./reports.controller.js";
 import { ReportsService } from "./reports.service.js";
 
-type RequestWithSession = FastifyRequest & { restaurantSession?: SessionRecord };
-
 @Injectable()
 class HttpErrorFilter {
   catch(error: unknown, host: import("@nestjs/common").ArgumentsHost) {
@@ -45,7 +43,8 @@ class HttpErrorFilter {
     if (error instanceof HttpException) {
       const statusCode = error.getStatus();
       const responseBody = error.getResponse();
-      return response.status(statusCode).send({ statusCode, code: "HTTP_ERROR", message: typeof responseBody === "string" ? responseBody : (responseBody as { message?: string }).message ?? "Request failed.", path: request.url });
+      const details = typeof responseBody === "string" ? { message: responseBody } : responseBody as { code?: string; message?: string };
+      return response.status(statusCode).send({ statusCode, code: details.code ?? "HTTP_ERROR", message: details.message ?? "Request failed.", path: request.url });
     }
     console.error(JSON.stringify({ event: "unhandled_error", path: request.url, error: error instanceof Error ? error.message : "unknown" }));
     return response.status(500).send({ statusCode: 500, code: "INTERNAL_ERROR", message: "An unexpected error occurred.", path: request.url });
@@ -54,9 +53,18 @@ class HttpErrorFilter {
 
 const loginSchema = z.object({ username: z.string().trim().min(1).max(100), password: z.string().min(1).max(256) });
 
+function sessionUser({ id, username, email, status, roles, permissions }: UserAccess) {
+  return { id, username, email, status, roles, permissions };
+}
+
 @Controller("auth")
+@Permissions()
 class AuthController {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService, @Inject(SessionService) private readonly sessions: SessionService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(SessionService) private readonly sessions: SessionService,
+    @Inject(AccessService) private readonly access: AccessService,
+  ) {}
 
   @Public()
   @Post("login")
@@ -64,32 +72,28 @@ class AuthController {
     const { username, password } = loginSchema.parse(rawBody);
     const user = await this.prisma.user.findUnique({ where: { username } });
     const argon2 = await import("argon2");
-    if (!user || !user.passwordHash || user.status !== "active" || !(await argon2.verify(user.passwordHash, password))) {
+    if (!user || !user.passwordHash || user.status !== "active" || user.deletedAt || !(await argon2.verify(user.passwordHash, password))) {
       throw new HttpException("Invalid credentials.", HttpStatus.UNAUTHORIZED);
     }
+    const access = await this.access.forUser(user.id);
     const session = await this.sessions.create(user.id);
     this.sessions.setCookie(reply, session);
-    return { user: { id: user.id, username: user.username, email: user.email }, csrfToken: session.csrfToken };
+    return { user: sessionUser(access), csrfToken: session.csrfToken };
   }
 
   @Get("me")
-  async me(@Req() request: RequestWithSession) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: request.restaurantSession!.userId },
-      select: { id: true, username: true, email: true, status: true, roles: { select: { role: { select: { permissions: { select: { permission: { select: { code: true } } } } } } } } },
-    });
-    if (!user) return { user: null };
-    return { user: { id: user.id, username: user.username, email: user.email, status: user.status, permissions: [...new Set(user.roles.flatMap((entry) => entry.role.permissions.map((permission) => permission.permission.code)))] } };
+  me(@Req() request: AuthenticatedRequest) {
+    return { user: sessionUser(request.restaurantAccess) };
   }
 
   @Get("csrf")
-  csrf(@Req() request: RequestWithSession) {
-    return { csrfToken: request.restaurantSession!.csrfToken };
+  csrf(@Req() request: AuthenticatedRequest) {
+    return { csrfToken: request.restaurantSession.csrfToken };
   }
 
   @Post("logout")
-  async logout(@Req() request: RequestWithSession, @Res({ passthrough: true }) reply: FastifyReply) {
-    await this.sessions.destroy(request.restaurantSession!.id);
+  async logout(@Req() request: AuthenticatedRequest, @Res({ passthrough: true }) reply: FastifyReply) {
+    await this.sessions.destroy(request.restaurantSession.id);
     this.sessions.clearCookie(reply);
     return { success: true };
   }
@@ -116,44 +120,38 @@ class HealthController {
 
 @Controller("foundation")
 class FoundationController {
-  constructor(@Inject(BranchScopeService) private readonly branchScopes: BranchScopeService, @Inject(RequestSubmissionService) private readonly submissions: RequestSubmissionService) {}
+  constructor(@Inject(BranchScopeService) private readonly branchScopes: BranchScopeService, @Inject(RequisitionService) private readonly requisitions: RequisitionService) {}
 
   @Get("branch/:branchId")
-  @UseGuards(PermissionsGuard)
   @Permissions("branch.read")
-  async branchScope(@Req() request: RequestWithSession) {
+  async branchScope(@Req() request: AuthenticatedRequest) {
     const branchId = (request.params as { branchId: string }).branchId;
-    await this.branchScopes.assertAllowed(request.restaurantSession!.userId, branchId);
+    await this.branchScopes.assertAllowed(request.restaurantSession.userId, branchId);
     return { allowed: true, branchId };
   }
 
   @Post("manager-action")
-  @UseGuards(PermissionsGuard)
   @Permissions("request.manager.review")
   managerAction() {
     return { allowed: true, scope: "manager" };
   }
 
   @Post("warehouse-action")
-  @UseGuards(PermissionsGuard)
   @Permissions("warehouse.process")
   warehouseAction() {
     return { allowed: true, scope: "warehouse" };
   }
 
   @Post("admin-action")
-  @UseGuards(PermissionsGuard)
   @Permissions("admin.manage")
   adminAction() {
     return { allowed: true, scope: "admin" };
   }
 
   @Post("requests/:requestId/submit-first-time")
-  @UseGuards(PermissionsGuard)
   @Permissions("request.submit")
-  submit(@Req() request: RequestWithSession) {
-    const requestId = (request.params as { requestId: string }).requestId;
-    return this.submissions.submitFirstTime(requestId, request.restaurantSession!.userId);
+  submit(@Req() request: AuthenticatedRequest, @Param("requestId") requestId: string) {
+    return this.requisitions.submitDraft(request.restaurantSession.userId, z.string().uuid().parse(requestId));
   }
 }
 
@@ -162,6 +160,7 @@ class FoundationController {
   providers: [
     PrismaService,
     SessionService,
+    AccessService,
     StorageService,
     BranchScopeService,
     RequestSubmissionService,
@@ -178,8 +177,7 @@ class FoundationController {
     NotificationService,
     AuditActivityService,
     ReportsService,
-    { provide: APP_GUARD, useClass: SessionGuard },
-    { provide: APP_GUARD, useClass: CsrfGuard },
+    { provide: APP_GUARD, useClass: AccessGuard },
     { provide: APP_FILTER, useClass: HttpErrorFilter },
   ],
 })

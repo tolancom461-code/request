@@ -7,23 +7,27 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PrismaService } from "../src/prisma.service.js";
 import { SessionService } from "../src/session.service.js";
-import { SessionGuard } from "../src/security.js";
+import { AccessGuard, AccessService, Permissions } from "../src/security.js";
 
 type Stored = { id: string; userId: string; csrfToken: string; createdAt: Date; lastSeenAt: Date; expiresAt: Date };
 const rows = new Map<string, Stored>();
 const prisma = {
+  $queryRaw: async (_query: TemplateStringsArray, userId: string) => [{
+    id: userId, username: userId, email: null, roleCode: null, permissionCode: null, branchId: null,
+  }],
   serverSession: {
     create: async ({ data }: { data: Stored }) => { rows.set(data.id, data); return data; },
     findUnique: async ({ where }: { where: { id: string } }) => rows.get(where.id) ?? null,
-    update: async ({ where, data }: { where: { id: string }; data: Partial<Stored> }) => {
+    updateMany: async ({ where, data }: { where: { id: string }; data: Partial<Stored> }) => {
       const row = { ...rows.get(where.id)!, ...data };
       rows.set(where.id, row);
-      return row;
+      return { count: 1 };
     },
     delete: async ({ where }: { where: { id: string } }) => rows.delete(where.id),
   },
 };
 @Controller("session-probe")
+@Permissions()
 class ProbeController {
   constructor(@Inject(SessionService) private readonly sessions: SessionService) {}
   @Get() get() { return { authenticated: true }; }
@@ -37,8 +41,9 @@ class ProbeController {
   controllers: [ProbeController],
   providers: [
     SessionService,
+    AccessService,
     { provide: PrismaService, useValue: prisma },
-    { provide: APP_GUARD, useClass: SessionGuard },
+    { provide: APP_GUARD, useClass: AccessGuard },
   ],
 })
 class ProbeModule {}
@@ -55,6 +60,7 @@ beforeEach(async () => {
   vi.stubEnv("SESSION_COOKIE_NAME", "__Host-session");
   vi.stubEnv("SESSION_IDLE_MINUTES", "30");
   vi.stubEnv("SESSION_ABSOLUTE_HOURS", "1");
+  vi.stubEnv("PUBLIC_APP_ORIGIN", "http://localhost:5173");
   vi.stubEnv("REDIS_URL", undefined);
   clock = vi.spyOn(Date, "now").mockReturnValue(start);
   app = await NestFactory.create<NestFastifyApplication>(ProbeModule, new FastifyAdapter(), { logger: false });
@@ -139,7 +145,7 @@ describe("Session renewal through protected HTTP requests", () => {
 
   it("clears the cookie on logout after the guard has renewed it", async () => {
     const session = await sessions.create("admin");
-    const response = await app.inject({ method: "POST", url: "/session-probe/logout", headers: { cookie: `session=${session.id}` } });
+    const response = await app.inject({ method: "POST", url: "/session-probe/logout", headers: { cookie: `session=${session.id}`, origin: "http://localhost:5173", "x-csrf-token": session.csrfToken } });
     expect(response.statusCode).toBe(201);
     expect(response.cookies.filter(value => value.name === "session").at(-1)?.value).toBe("");
     expect(await sessions.get(session.id)).toBeNull();

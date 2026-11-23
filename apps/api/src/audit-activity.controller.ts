@@ -1,9 +1,9 @@
-import { Controller, Get, Inject, Param, Query, Req, UseGuards } from "@nestjs/common";
+import { Controller, Get, Inject, Param, Query, Req } from "@nestjs/common";
 import type { FastifyRequest } from "fastify";
 import { ActorType } from "@prisma/client";
 import { z } from "zod";
 import { AuditActivityService, type AuditListInput } from "./audit-activity.service.js";
-import { Permissions, PermissionsGuard } from "./security.js";
+import { Permissions } from "./security.js";
 
 const id = z.string().uuid();
 const query = z.object({
@@ -27,7 +27,6 @@ const input = (raw: unknown): AuditListInput => {
 };
 
 @Controller("admin")
-@UseGuards(PermissionsGuard)
 @Permissions("admin.manage")
 export class AuditActivityController {
   constructor(@Inject(AuditActivityService) private readonly audit: AuditActivityService) {}

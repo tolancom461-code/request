@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
-import { notifySessionExpired } from "../session-events";
+import { notifyApiAccess } from "../session-events";
 import { ErrorState, LoadingState, PageHeader, SectionCard } from "./foundation";
 
 type NumberingStatus = { year: number; timeZone: string; series: Array<{ type: string; prefix: string; lastValue: string; lastNumber: string | null }> };
@@ -17,7 +17,7 @@ export function DocumentNumberingPage({ online }: { online: boolean }) {
     try {
       const response = await fetch("/api/v1/admin/document-numbering", { credentials: "same-origin", cache: "no-store" });
       const body = await response.json();
-      notifySessionExpired(response.status, body);
+      notifyApiAccess(response.status, body);
       if (!response.ok) throw new Error();
       setData(body);
     } catch { setError(true); }

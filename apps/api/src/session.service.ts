@@ -105,7 +105,17 @@ export class SessionService implements OnModuleDestroy {
       await this.prisma.serverSession.delete({ where: { id } }).catch(() => undefined);
       return null;
     }
-    await this.prisma.serverSession.update({ where: { id }, data: { lastSeenAt: new Date(now), expiresAt: new Date(this.expiry(stored.createdAt.getTime(), now)) } });
+    if (stored.lastSeenAt.getTime() < now) {
+      const renewed = await this.prisma.serverSession.updateMany({
+        where: { id, lastSeenAt: { lt: new Date(now) } },
+        data: { lastSeenAt: new Date(now), expiresAt: new Date(this.expiry(stored.createdAt.getTime(), now)) },
+      });
+      if (renewed.count === 0) {
+        // A concurrent renewal may already have written a newer timestamp.
+        const current = await this.prisma.serverSession.findUnique({ where: { id }, select: { expiresAt: true } });
+        if (!current || current.expiresAt.getTime() <= now) return null;
+      }
+    }
     return { id: stored.id, userId: stored.userId, csrfToken: stored.csrfToken, createdAt: stored.createdAt.getTime(), lastSeenAt: now };
   }
 

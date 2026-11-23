@@ -124,6 +124,27 @@ describe("Phase 2A authentication, authorization, and platform security", () => 
     expect((await request(app.getHttpServer()).get("/api/v1/auth/me").set("Cookie", session.cookie)).status).toBe(401);
   });
 
+  it("rechecks role changes and an inactive account even when its session still exists", async () => {
+    const employee = await createUser("branch_employee", [branchA]);
+    const session = await login(employee.username);
+    const get = (path: string) => app.inject({ url: `/api/v1/${path}`, headers: { cookie: session.cookie } });
+    const profile = await get("auth/me");
+    expect(profile.json().user).toMatchObject({ roles: ["branch_employee"], permissions: expect.arrayContaining(["request.submit"]) });
+    expect((await get("requisition/branches")).statusCode).toBe(200);
+
+    await prisma.userRole.deleteMany({ where: { userId: employee.user.id } });
+    const noRoleProfile = await get("auth/me");
+    expect(noRoleProfile.json().user).toMatchObject({ roles: [], permissions: [] });
+    const denied = await get("requisition/branches");
+    expect(denied.statusCode).toBe(403);
+    expect(denied.json().code).toBe("PERMISSION_REQUIRED");
+
+    await prisma.user.update({ where: { id: employee.user.id }, data: { status: "inactive" } });
+    expect(await app.get(SessionService).get(cookieId(session.cookie))).not.toBeNull();
+    expect((await get("auth/me")).statusCode).toBe(401);
+    expect((await get("notifications/unread-count")).statusCode).toBe(401);
+  });
+
   it("TC-SEC-06 enforces all four role permissions independently", async () => {
     const employee = await createUser("branch_employee", [branchA]);
     const manager = await createUser("branch_manager", [branchA, branchB]);

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { resolveWorkspaceAccess } from "../apps/web/src/workspace-access.ts";
 
 const root = new URL("..", import.meta.url);
 const read = (path: string) => readFile(new URL(path, root), "utf8");
@@ -7,7 +8,10 @@ const read = (path: string) => readFile(new URL(path, root), "utf8");
 describe("Phase 7 warehouse operations UI contract", () => {
   it("registers the permission-gated Warehouse navigation and nested detail route", async () => {
     const app = await read("apps/web/src/App.tsx");
-    for (const marker of ['href="#/warehouse/requests"', "isWarehouseRoute", "canWarehouse", "WarehouseOperationsPage", "warehouseAccessDenied"]) expect(app).toContain(marker);
+    expect(app).toContain("WarehouseOperationsPage");
+    const path = "#/warehouse/requests/10000000-0000-4000-8000-000000000001";
+    expect(resolveWorkspaceAccess(path, ["warehouse.process"]).path).toBe(path);
+    expect(resolveWorkspaceAccess(path, ["branch.read", "request.submit"]).path).toBe("#/requisitions");
   });
 
   it("uses real scoped Warehouse API endpoints, CSRF mutations, and row-version payloads", async () => {

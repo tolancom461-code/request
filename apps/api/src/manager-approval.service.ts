@@ -41,10 +41,6 @@ export class ManagerApprovalService {
     return request;
   }
 
-  private async isSystemAdmin(userId: string) {
-    return Boolean(await this.prisma.userRole.findFirst({ where: { userId, role: { code: "system_admin" } }, select: { userId: true } }));
-  }
-
   private async lockRequest(tx: Tx, requestId: string, expectedRowVersion?: number) {
     await tx.$executeRaw`SELECT id FROM requests WHERE id = ${requestId} FOR UPDATE`;
     const request = await tx.requestRecord.findUniqueOrThrow({ where: { id: requestId } });
@@ -113,11 +109,10 @@ export class ManagerApprovalService {
   }
 
   async listPending(userId: string, input: ManagerListInput) {
-    const systemAdmin = await this.isSystemAdmin(userId);
-    if (input.branchId) await this.branchScopes.assertAllowed(userId, input.branchId);
+    const scope = await this.branchScopes.scopeFor(userId, input.branchId);
     const where: Prisma.RequestRecordWhereInput = {
       status: RequestStatus.pending_approval,
-      ...(systemAdmin ? {} : { branch: { scopes: { some: { userId } } } }),
+      ...(scope.isSystemAdmin ? {} : { branch: { scopes: { some: { userId } } } }),
       ...(input.branchId ? { branchId: input.branchId } : {}),
       ...(input.submittedFrom || input.submittedTo ? { submittedAt: { ...(input.submittedFrom ? { gte: input.submittedFrom } : {}), ...(input.submittedTo ? { lte: input.submittedTo } : {}) } } : {}),
       ...(input.search ? {

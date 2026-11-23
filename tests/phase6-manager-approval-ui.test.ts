@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { resolveWorkspaceAccess } from "../apps/web/src/workspace-access.ts";
 
 const root = new URL("..", import.meta.url);
 const read = (path: string) => readFile(new URL(path, root), "utf8");
@@ -7,11 +8,10 @@ const read = (path: string) => readFile(new URL(path, root), "utf8");
 describe("Phase 6 manager approval UI contract", () => {
   it("registers the permission-gated manager inbox and nested review route", async () => {
     const app = await read("apps/web/src/App.tsx");
-    expect(app).toContain('href="#/manager/requisitions"');
-    expect(app).toContain("isManagerRoute");
-    expect(app).toContain("canReview");
     expect(app).toContain("ManagerApprovalPage");
-    expect(app).toContain("managerAccessDenied");
+    const path = "#/manager/requisitions/10000000-0000-4000-8000-000000000001/review";
+    expect(resolveWorkspaceAccess(path, ["request.review"]).path).toBe(path);
+    expect(resolveWorkspaceAccess(path, ["branch.read", "request.submit"]).path).toBe("#/requisitions");
   });
 
   it("uses the real manager API, CSRF mutation flow, row-version payloads, and server-backed unit choices", async () => {

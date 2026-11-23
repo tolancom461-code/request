@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 import { ManagerApprovalService } from "./manager-approval.service.js";
-import { Permissions, PermissionsGuard } from "./security.js";
+import { Permissions } from "./security.js";
 import type { SessionRecord } from "./session.service.js";
 
 type RequestWithSession = FastifyRequest & { restaurantSession?: SessionRecord };
@@ -27,7 +27,6 @@ export class ManagerApprovalController {
   private user(request: RequestWithSession) { return request.restaurantSession!.userId; }
 
   @Get()
-  @UseGuards(PermissionsGuard)
   @Permissions("request.review")
   list(@Req() request: RequestWithSession, @Query() query: unknown) {
     const input = list.parse(query);
@@ -35,37 +34,30 @@ export class ManagerApprovalController {
   }
 
   @Get(":requestId")
-  @UseGuards(PermissionsGuard)
   @Permissions("request.review")
   detail(@Req() request: RequestWithSession, @Param("requestId") requestId: string) { return this.manager.detail(this.user(request), id.parse(requestId)); }
 
   @Get(":requestId/items/:requestItemId/units")
-  @UseGuards(PermissionsGuard)
   @Permissions("request.review")
   lineUnits(@Req() request: RequestWithSession, @Param("requestId") requestId: string, @Param("requestItemId") requestItemId: string) { return this.manager.lineUnits(this.user(request), id.parse(requestId), id.parse(requestItemId)); }
 
   @Patch(":requestId/items/:requestItemId")
-  @UseGuards(PermissionsGuard)
   @Permissions("request.review")
   updateLine(@Req() request: RequestWithSession, @Param("requestId") requestId: string, @Param("requestItemId") requestItemId: string, @Body() body: unknown) { return this.manager.updatePendingLine(this.user(request), id.parse(requestId), id.parse(requestItemId), line.parse(body)); }
 
   @Post(":requestId/items/:requestItemId/exclude")
-  @UseGuards(PermissionsGuard)
   @Permissions("request.review")
   excludeLine(@Req() request: RequestWithSession, @Param("requestId") requestId: string, @Param("requestItemId") requestItemId: string, @Body() body: unknown) { return this.manager.excludePendingLine(this.user(request), id.parse(requestId), id.parse(requestItemId), reason.parse(body)); }
 
   @Post(":requestId/approve")
-  @UseGuards(PermissionsGuard)
   @Permissions("request.approve")
   approve(@Req() request: RequestWithSession, @Param("requestId") requestId: string, @Body() body: unknown) { return this.manager.approve(this.user(request), id.parse(requestId), decision.parse(body)); }
 
   @Post(":requestId/return")
-  @UseGuards(PermissionsGuard)
   @Permissions("request.return")
   returnRequest(@Req() request: RequestWithSession, @Param("requestId") requestId: string, @Body() body: unknown) { return this.manager.returnRequest(this.user(request), id.parse(requestId), reason.parse(body)); }
 
   @Post(":requestId/reject")
-  @UseGuards(PermissionsGuard)
   @Permissions("request.reject")
   reject(@Req() request: RequestWithSession, @Param("requestId") requestId: string, @Body() body: unknown) { return this.manager.reject(this.user(request), id.parse(requestId), reason.parse(body)); }
 }

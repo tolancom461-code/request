@@ -53,10 +53,6 @@ export class WarehouseOperationsService {
     return { nameAr: item.nameAr, nameEn: item.nameEn ?? item.nameAr, nameUr: item.nameUr ?? item.nameAr };
   }
 
-  private async isSystemAdmin(userId: string) {
-    return Boolean(await this.prisma.userRole.findFirst({ where: { userId, role: { code: "system_admin" } }, select: { userId: true } }));
-  }
-
   private async assertScopedWarehouseRequest(userId: string, requestId: string) {
     const request = await this.prisma.requestRecord.findUnique({ where: { id: requestId } });
     if (!request || !warehouseStatuses.includes(request.status as WarehouseStatus)) throw new NotFoundException("Warehouse request was not found.");
@@ -129,12 +125,11 @@ export class WarehouseOperationsService {
   }
 
   private async whereFor(userId: string, input: WarehouseListInput): Promise<Prisma.RequestRecordWhereInput> {
-    const systemAdmin = await this.isSystemAdmin(userId);
-    if (input.branchId) await this.branchScopes.assertAllowed(userId, input.branchId);
+    const scope = await this.branchScopes.scopeFor(userId, input.branchId);
     const statuses = input.statuses?.length ? input.statuses : [...actionableStatuses];
     return {
       status: { in: statuses },
-      ...(systemAdmin ? {} : { branch: { scopes: { some: { userId } } } }),
+      ...(scope.isSystemAdmin ? {} : { branch: { scopes: { some: { userId } } } }),
       ...(input.branchId ? { branchId: input.branchId } : {}),
       ...(input.supplierId ? { items: { some: { lineStatus: RequestLineStatus.active, supplierIdSnapshot: input.supplierId } } } : {}),
       ...(input.itemId ? { items: { some: { lineStatus: RequestLineStatus.active, itemIdSnapshot: input.itemId } } } : {}),

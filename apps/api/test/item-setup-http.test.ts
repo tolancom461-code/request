@@ -20,7 +20,7 @@ import { ItemSetupController } from "../src/item-setup.controller.js";
 import { ItemSetupService } from "../src/item-setup.service.js";
 import { PrismaService } from "../src/prisma.service.js";
 import { SessionService } from "../src/session.service.js";
-import { CsrfGuard, SessionGuard } from "../src/security.js";
+import { AccessGuard, AccessService } from "../src/security.js";
 
 const itemId = "10000000-0000-4000-8000-000000000001";
 const unitId = "10000000-0000-4000-8000-000000000002";
@@ -34,16 +34,10 @@ const service = {
   assignRestaurantItems: vi.fn(),
 };
 const prisma = {
-  userRole: {
-    findMany: async ({ where }: { where: { userId: string } }) =>
-      where.userId === "admin"
-        ? [
-            {
-              role: { permissions: [{ permission: { code: "admin.manage" } }] },
-            },
-          ]
-        : [],
-  },
+  $queryRaw: async (_query: TemplateStringsArray, userId: string) => [{
+    id: userId, username: userId, email: null, roleCode: userId,
+    permissionCode: userId === "admin" ? "admin.manage" : null, branchId: null,
+  }],
 };
 const sessions = {
   requestSessionId: (request: { cookies: Record<string, string> }) =>
@@ -61,8 +55,8 @@ const sessions = {
     { provide: ItemSetupService, useValue: service },
     { provide: PrismaService, useValue: prisma },
     { provide: SessionService, useValue: sessions },
-    { provide: APP_GUARD, useClass: SessionGuard },
-    { provide: APP_GUARD, useClass: CsrfGuard },
+    AccessService,
+    { provide: APP_GUARD, useClass: AccessGuard },
   ],
 })
 class SetupTestModule {}

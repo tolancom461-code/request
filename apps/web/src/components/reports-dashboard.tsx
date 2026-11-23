@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { notifySessionExpired } from "../session-events";
+import { notifyApiAccess } from "../session-events";
+import { reportTabs, reportTabPath, type ReportTab } from "../workspace-access";
 import {
   Alert, Box, Button, Card, CardContent, Chip, Divider, FormControl, InputLabel, MenuItem,
   Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tab, Tabs, TextField, Typography,
@@ -14,10 +15,7 @@ type FilterOptions = { branches: Branch[]; statuses: string[] };
 type Dashboard = { kpis: { submittedRequests: number; currentStatusCounts: Record<string, number>; totalActiveRequestedBaseQuantity: string; completionRate: number; returnRate: number; rejectionRate: number; averageApprovalCycleMinutes: number | null; averageWarehouseProcessingMinutes: number | null; averageEndToEndCompletionMinutes: number | null }; metricDefinitions: Record<string, string> };
 type List = { data: Array<Record<string, unknown>>; total?: number };
 type ReportResponse = Dashboard | List | Record<string, unknown>;
-type TabKey = "dashboard" | "requests" | "branches" | "items" | "suppliers" | "status-lifecycle" | "approvals" | "warehouse";
-
-const tabOrder: TabKey[] = ["dashboard", "requests", "branches", "items", "suppliers", "status-lifecycle", "approvals", "warehouse"];
-const tabPath = (tab: TabKey) => tab === "dashboard" ? "#/reports" : `#/reports/${tab}`;
+type TabKey = ReportTab;
 const asString = (value: unknown) => value === null || value === undefined ? "—" : String(value);
 const isoDay = (value: string, end = false) => new Date(`${value}T${end ? "23:59:59.999" : "00:00:00.000"}`).toISOString();
 const daysAgo = (days: number) => { const date = new Date(); date.setDate(date.getDate() - days); return date.toISOString().slice(0, 10); };
@@ -25,7 +23,7 @@ const daysAgo = (days: number) => { const date = new Date(); date.setDate(date.g
 async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, { cache: "no-store", credentials: "same-origin", signal });
   const body = await response.json().catch(() => null) as T | null;
-  notifySessionExpired(response.status, body);
+  notifyApiAccess(response.status, body);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return body as T;
 }
@@ -49,7 +47,7 @@ function reportQuery(from: string, to: string, branchId = "", statuses: string[]
 export function ReportsDashboardPage({ online, path, canExport }: { online: boolean; path: string; canExport: boolean }) {
   const { i18n, t } = useTranslation();
   const locale = i18n.language.startsWith("ur") ? "ur-PK" : i18n.language.startsWith("en") ? "en-GB" : "ar-SA";
-  const tab = (tabOrder.find((entry) => path === tabPath(entry)) ?? "dashboard") as TabKey;
+  const tab = reportTabs.find((entry) => path === reportTabPath(entry)) ?? "dashboard";
   const [from, setFrom] = useState(() => daysAgo(30));
   const [to, setTo] = useState(() => daysAgo(0));
   const [branchId, setBranchId] = useState("");
@@ -87,7 +85,7 @@ export function ReportsDashboardPage({ online, path, canExport }: { online: bool
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [online, reportPath, query, refreshKey]);
-  const updateTab = (_: unknown, next: TabKey) => { window.location.hash = tabPath(next); };
+  const updateTab = (_: unknown, next: TabKey) => { window.location.hash = reportTabPath(next); };
   const exportCurrent = () => {
     if (!canExport || !online || tab === "dashboard") return;
     const params = new URLSearchParams(query); params.set("report", tab);
@@ -119,7 +117,7 @@ export function ReportsDashboardPage({ online, path, canExport }: { online: bool
       </Box>
     </SectionCard></Box>
     <Box sx={{ mt: 2 }}><SectionCard>
-      <Tabs aria-label={t("report.tabs")} onChange={updateTab} scrollButtons="auto" value={tab} variant="scrollable">{tabOrder.map((entry) => <Tab key={entry} label={labelFor(t, entry)} value={entry} />)}</Tabs>
+      <Tabs aria-label={t("report.tabs")} onChange={updateTab} scrollButtons="auto" value={tab} variant="scrollable">{reportTabs.map((entry) => <Tab key={entry} label={labelFor(t, entry)} value={entry} />)}</Tabs>
       <Divider sx={{ mt: 1 }} />
       {loading ? <Box sx={{ p: 3 }}><LoadingState message={t("report.loading")} title={labelFor(t, tab)} /></Box> : error || optionsError ? <Box sx={{ p: 3 }}><ErrorState action={<Button onClick={refresh} variant="outlined">{t("retry")}</Button>} message={t(error ?? "reportLoadFailed")} title={labelFor(t, tab)} /></Box> : !online ? <Box sx={{ p: 3 }}><Alert severity="warning">{t("report.offline")}</Alert></Box> : dashboard ? <DashboardView dashboard={dashboard} locale={locale} t={t} statusRows={statusRows} /> : <ReportTable tab={tab} data={reportRows} locale={locale} t={t} />}
     </SectionCard></Box>

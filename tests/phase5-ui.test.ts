@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { resolveWorkspaceAccess } from "../apps/web/src/workspace-access.ts";
 
 const root = new URL("..", import.meta.url);
 const read = (path: string) => readFile(new URL(path, root), "utf8");
@@ -7,9 +8,11 @@ const read = (path: string) => readFile(new URL(path, root), "utf8");
 describe("Phase 5 requisition UI contract", () => {
   it("registers the protected requisition route and navigation entry", async () => {
     const app = await read("apps/web/src/App.tsx");
-    expect(app).toContain('href="#/requisitions"');
-    expect(app).toContain("isRequisitionRoute");
     expect(app).toContain("RequisitionPage");
+    expect(resolveWorkspaceAccess("", ["branch.read", "request.submit"]).path).toBe("#/requisitions");
+    expect(resolveWorkspaceAccess("#/requisitions", ["request.submit"]).path).toBeUndefined();
+    expect(resolveWorkspaceAccess("#/requisitions", ["branch.read"]).path).toBeUndefined();
+    expect(resolveWorkspaceAccess("#/requisitions", ["reports.view"]).path).toBe("#dashboard");
   });
 
   it("uses the real server-backed catalog, draft, line, submit and resubmit endpoints", async () => {

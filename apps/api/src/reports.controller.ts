@@ -1,8 +1,8 @@
-import { Controller, Get, Inject, Query, Req, Res, UseGuards } from "@nestjs/common";
+import { Controller, Get, Inject, Query, Req, Res } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { RequestStatus } from "@prisma/client";
 import { z } from "zod";
-import { Permissions, PermissionsGuard } from "./security.js";
+import { Permissions } from "./security.js";
 import type { SessionRecord } from "./session.service.js";
 import { ReportsService, type ExportReport, type ReportInput } from "./reports.service.js";
 
@@ -29,7 +29,6 @@ const reportInput = (raw: unknown): ReportInput => {
 const quote = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
 @Controller("reports")
-@UseGuards(PermissionsGuard)
 @Permissions("reports.view")
 export class ReportsController {
   constructor(@Inject(ReportsService) private readonly reports: ReportsService) {}

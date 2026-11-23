@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { resolveWorkspaceAccess } from "../apps/web/src/workspace-access.ts";
 
 const root = new URL("..", import.meta.url);
 const read = (path: string) => readFile(new URL(path, root), "utf8");
@@ -7,11 +8,10 @@ const read = (path: string) => readFile(new URL(path, root), "utf8");
 describe("Phase 9 reports dashboard UI contract", () => {
   it("TC-P9-UI-01 registers permission-gated reports navigation and protected hash routes", async () => {
     const app = await read("apps/web/src/App.tsx");
-    expect(app).toContain('includes("reports.view")');
     expect(app).toContain('includes("reports.export")');
-    expect(app).toContain('href="#/reports"');
-    expect(app).toContain("isReportsRoute");
     expect(app).toContain("ReportsDashboardPage");
+    expect(resolveWorkspaceAccess("#/reports/warehouse", ["reports.view"]).path).toBe("#/reports/warehouse");
+    expect(resolveWorkspaceAccess("#/reports/warehouse", ["reports.export"]).path).toBeUndefined();
   });
 
   it("TC-P9-UI-02 binds server-backed dashboard, report surfaces, date/scope/status filters and export", async () => {

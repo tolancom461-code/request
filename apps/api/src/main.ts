@@ -12,10 +12,13 @@ import fastifyStatic from "@fastify/static";
 import { AppModule } from "./app.module.js";
 import { loadConfig } from "./config.js";
 import { SessionService } from "./session.service.js";
+import { AccessService } from "./security.js";
 
 export async function createApplication() {
   const config = loadConfig();
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ logger: false }), { bufferLogs: true });
+  const access = app.get(AccessService);
+  app.getHttpAdapter().getInstance().addHook("onRequest", (_request, _reply, done) => access.runRequest(done));
   // Fastify plugins share compatible runtime contracts; the casts bridge duplicated Fastify type instances from Nest adapters.
   await app.register(cookie as never);
   await app.register(helmet as never, { contentSecurityPolicy: false });

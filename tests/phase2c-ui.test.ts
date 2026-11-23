@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { createVerdantTheme, localeMetadata, resolveLocale, verdantTokens } from "../apps/web/src/theme.ts";
+import { resolveWorkspaceAccess } from "../apps/web/src/workspace-access.ts";
 
 const read = (path: string) => readFile(new URL(path, import.meta.url), "utf8");
 
@@ -49,7 +50,7 @@ describe("Phase 2C selected T3 + I1 production foundation", () => {
   it("does not expose dead future-module navigation or introduce a competing UI framework", async () => {
     const app = await read("../apps/web/src/App.tsx");
     const manifest = await read("../apps/web/package.json");
-    expect(app).toContain('href="#dashboard"');
+    expect(resolveWorkspaceAccess("", ["reports.view"]).path).toBe("#dashboard");
     expect(app).not.toContain("Requests");
     expect(app).not.toContain("Approvals");
     expect(manifest).toContain('"@mui/material": "9.3.1"');

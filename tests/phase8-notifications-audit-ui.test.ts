@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { resolveWorkspaceAccess } from "../apps/web/src/workspace-access.ts";
 
 const root = new URL("..", import.meta.url);
 const read = (path: string) => readFile(new URL(path, root), "utf8");
@@ -7,7 +8,12 @@ const read = (path: string) => readFile(new URL(path, root), "utf8");
 describe("Phase 8 notifications, audit and activity UI contract", () => {
   it("registers a notification badge and admin-gated audit/activity navigation", async () => {
     const app = await read("apps/web/src/App.tsx");
-    for (const marker of ["Phase8NotificationButton", "isAuditRoute", "AuditActivityWorkspace", 'href="#/admin/audit"', 'href="#/admin/user-activity"', "canManage"]) expect(app).toContain(marker);
+    expect(app).toContain("Phase8NotificationButton");
+    expect(app).toContain("AuditActivityWorkspace");
+    for (const path of ["#/admin/audit", "#/admin/user-activity"]) {
+      expect(resolveWorkspaceAccess(path, ["admin.manage"]).activeRoute?.view).toBe("audit");
+      expect(resolveWorkspaceAccess(path, ["branch.read", "request.submit"]).path).toBe("#/requisitions");
+    }
   });
 
   it("uses recipient-owned notification endpoints and CSRF-protected read mutations with no-store refresh", async () => {
