@@ -1,5 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { notifySessionExpired } from "../session-events";
 import {
   Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControl, FormControlLabel, FormGroup, InputLabel, MenuItem, Pagination, Paper,
@@ -29,6 +30,7 @@ const moduleSpecs: ModuleSpec[] = [
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { credentials: "same-origin", ...init });
   const body = await response.json().catch(() => null) as { message?: string } | T | null;
+  notifySessionExpired(response.status, body);
   if (!response.ok) {
     const error = new Error(typeof body === "object" && body && "message" in body ? String(body.message) : `HTTP ${response.status}`) as ApiError;
     error.status = response.status;

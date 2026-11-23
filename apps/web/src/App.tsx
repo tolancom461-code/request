@@ -60,6 +60,7 @@ import {
   StatusChip,
 } from "./components/foundation";
 import { resolveLocale } from "./theme";
+import { notifySessionExpired, SESSION_EXPIRED_EVENT } from "./session-events";
 import { adminNavigation } from "./components/admin-navigation";
 import { AuditActivityWorkspace, Phase8NotificationButton } from "./components/notifications-audit";
 
@@ -84,6 +85,7 @@ const drawerWidth = 292;
 async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { credentials: "same-origin", ...init });
   const data = (await response.json().catch(() => null)) as T | null;
+  notifySessionExpired(response.status, data);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return data as T;
 }
@@ -313,7 +315,7 @@ export function App() {
   const { t } = useTranslation();
   const [state, setState] = useState<AuthState>("checking");
   const [user, setUser] = useState<SessionUser | null>(null);
-  const [loginError, setLoginError] = useState<"invalidCredentials" | null>(null);
+  const [loginError, setLoginError] = useState<"invalidCredentials" | "sessionExpired" | null>(null);
   const [sessionError, setSessionError] = useState<"sessionError" | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -335,6 +337,16 @@ export function App() {
   }, []);
 
   useEffect(() => { void loadSession(); }, [loadSession]);
+
+  useEffect(() => {
+    const expired = () => {
+      setUser(null);
+      setLoginError("sessionExpired");
+      setState("anonymous");
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, expired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, expired);
+  }, []);
 
   const submitLogin = async (username: string, password: string) => {
     setSubmitting(true);

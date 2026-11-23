@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { notifySessionExpired } from "../session-events";
 import {
   Alert,
   Box,
@@ -117,6 +118,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   const payload = await response.json().catch(() => null);
+  notifySessionExpired(response.status, payload);
   if (!response.ok)
     throw new Error(payload?.message ?? `HTTP ${response.status}`);
   return payload as T;

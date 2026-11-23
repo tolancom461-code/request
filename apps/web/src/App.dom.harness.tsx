@@ -1,8 +1,9 @@
 import { I18nextProvider } from "react-i18next";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import i18n from "./i18n";
+import { notifySessionExpired } from "./session-events";
 
 vi.mock("./components/admin", () => ({ AdministrationWorkspace: () => <div data-testid="admin-workspace">Admin workspace</div> }));
 vi.mock("./components/items", () => ({ ItemsPage: () => <div data-testid="items-page">Items</div> }));
@@ -86,5 +87,32 @@ describe("Phase 10 rendered shell harness", () => {
     await waitFor(() => expect(screen.queryByRole("link", { name: "Manager review inbox" })).toBeNull());
     expect(screen.queryByRole("link", { name: "Warehouse queue" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Branch requisitions" })).toBeNull();
+  });
+
+  test.each(["en", "ar"])("requests sign-in in %s after authentication expires while retaining the current route", async locale => {
+    await i18n.changeLanguage(locale);
+    window.location.hash = "#/admin/items";
+    const { App } = await import("./App");
+    render(<I18nextProvider i18n={i18n}><App /></I18nextProvider>);
+    await screen.findByTestId("items-page");
+    act(() => notifySessionExpired(401, { message: "Authentication is required." }));
+    await screen.findByRole("button", { name: i18n.t("signIn") });
+    expect(screen.getByRole("alert").textContent).toContain(i18n.t("sessionExpired"));
+    expect(screen.queryByTestId("items-page")).toBeNull();
+    expect(window.location.hash).toBe("#/admin/items");
+  });
+
+  test("keeps the session for a CSRF error, missing permission, or server failure", async () => {
+    window.location.hash = "#/admin/items";
+    const { App } = await import("./App");
+    render(<I18nextProvider i18n={i18n}><App /></I18nextProvider>);
+    await screen.findByTestId("items-page");
+    act(() => {
+      notifySessionExpired(401, { message: "CSRF validation failed." });
+      notifySessionExpired(403, { message: "Required permission is missing." });
+      notifySessionExpired(500, { message: "An unexpected error occurred." });
+    });
+    expect(screen.getByTestId("items-page")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
   });
 });

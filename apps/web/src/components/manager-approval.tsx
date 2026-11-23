@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { notifySessionExpired } from "../session-events";
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Pagination, Paper, Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from "@mui/material";
 import AssignmentTurnedInOutlinedIcon from "@mui/icons-material/AssignmentTurnedInOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
@@ -19,6 +20,7 @@ type ReasonIntent = { kind: "exclude"; line: RequestLine } | { kind: "return" | 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { credentials: "same-origin", ...init });
   const payload = await response.json().catch(() => null) as { message?: string } | T | null;
+  notifySessionExpired(response.status, payload);
   if (!response.ok) { const error = new Error(typeof payload === "object" && payload && "message" in payload ? String(payload.message) : `HTTP ${response.status}`) as ApiError; error.status = response.status; throw error; }
   return payload as T;
 }

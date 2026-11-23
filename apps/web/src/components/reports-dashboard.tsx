@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { notifySessionExpired } from "../session-events";
 import {
   Alert, Box, Button, Card, CardContent, Chip, Divider, FormControl, InputLabel, MenuItem,
   Select, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tab, Tabs, TextField, Typography,
@@ -23,8 +24,10 @@ const daysAgo = (days: number) => { const date = new Date(); date.setDate(date.g
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: "no-store", credentials: "same-origin" });
+  const body = await response.json().catch(() => null) as T | null;
+  notifySessionExpired(response.status, body);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json() as Promise<T>;
+  return body as T;
 }
 
 function labelFor(t: (key: string, options?: Record<string, unknown>) => string, key: string) { return t(`report.${key}`); }

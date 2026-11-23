@@ -1,5 +1,5 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable, SetMetadata, UnauthorizedException } from "@nestjs/common";
-import type { FastifyRequest } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { PrismaService } from "./prisma.service.js";
 import { SessionService, type SessionRecord } from "./session.service.js";
 
@@ -22,6 +22,7 @@ export class SessionGuard implements CanActivate {
     const session = await this.sessions.get(this.sessions.requestSessionId(request));
     if (!session) throw new UnauthorizedException("Authentication is required.");
     request.restaurantSession = session;
+    this.sessions.setCookie(context.switchToHttp().getResponse<FastifyReply>(), session);
     return true;
   }
 }

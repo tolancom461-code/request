@@ -49,6 +49,7 @@ const sessions = {
   requestSessionId: (request: { cookies: Record<string, string> }) =>
     request.cookies.session,
   get: async (id?: string) => (id ? { userId: id, csrfToken: "csrf" } : null),
+  setCookie: vi.fn(),
   assertCsrf: (_session: unknown, token?: string, origin?: string) => {
     if (token !== "csrf" || origin !== "http://localhost:3000")
       throw new UnauthorizedException();

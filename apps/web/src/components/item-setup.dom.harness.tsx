@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import i18n from "../i18n";
 import { ItemSetupWorkspace } from "./item-setup";
+import { SESSION_EXPIRED_EVENT } from "../session-events";
 
 const category = {
   id: "category",
@@ -261,6 +262,25 @@ describe("Restaurant setup interactive workflow", () => {
         screen.getByRole("combobox", { name: "Restaurant" }) as HTMLElement
       ).getAttribute("aria-disabled")
     ).toBe("true");
+    expect(mutations).toHaveLength(0);
+  });
+
+  test("requests sign-in without posting the supplier when authentication expires before saving", async () => {
+    const user = userEvent.setup();
+    renderSetup();
+    await screen.findByText("Rice");
+    await user.click(screen.getByRole("tab", { name: "Item supplier" }));
+    await choose("Item", "SALT · Salt");
+    await choose("Supplier", "S1 · Food supplier");
+    const normalFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation((input, init) =>
+      String(input).endsWith("/auth/csrf")
+        ? Promise.resolve(json({ message: "Authentication is required." }, 401))
+        : normalFetch(input, init)
+    );
+    const dispatch = vi.spyOn(window, "dispatchEvent");
+    await user.click(screen.getByRole("button", { name: "Save item supplier" }));
+    await waitFor(() => expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: SESSION_EXPIRED_EVENT })));
     expect(mutations).toHaveLength(0);
   });
 });

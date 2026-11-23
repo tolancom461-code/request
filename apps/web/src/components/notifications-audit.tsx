@@ -1,5 +1,6 @@
 import { Fragment, type ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { notifySessionExpired } from "../session-events";
 import {
   Alert, Badge, Box, Button, Chip, CircularProgress, Divider, IconButton, List, ListItemButton, ListItemText, Menu, MenuItem,
   Pagination, Paper, Select, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
@@ -16,6 +17,7 @@ type Page<T> = { items: T[]; page: number; pageSize: number; total: number; tota
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/v1${path}`, { cache: "no-store", credentials: "same-origin", ...init });
   const body = await response.json().catch(() => null) as T | null;
+  notifySessionExpired(response.status, body);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return body as T;
 }

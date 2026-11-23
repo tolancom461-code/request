@@ -39,6 +39,10 @@ export class SessionService implements OnModuleDestroy {
     return this.config.SESSION_COOKIE_NAME.slice("__Host-".length);
   }
 
+  private expiry(createdAt: number, now: number) {
+    return Math.min(now + this.config.SESSION_IDLE_MINUTES * 60_000, createdAt + this.config.SESSION_ABSOLUTE_HOURS * 3600_000);
+  }
+
   async connect() {
     if (this.redis?.status === "wait") await this.redis.connect();
   }
@@ -68,9 +72,9 @@ export class SessionService implements OnModuleDestroy {
     };
     if (this.redis) {
       await this.connect();
-      await this.redis.set(sessionKey(session.id), JSON.stringify(session), "EX", this.config.SESSION_ABSOLUTE_HOURS * 3600);
+      await this.redis.set(sessionKey(session.id), JSON.stringify(session), "EX", Math.ceil((this.expiry(now, now) - now) / 1000));
     } else {
-      const expiresAt = new Date(now + this.config.SESSION_ABSOLUTE_HOURS * 3600_000);
+      const expiresAt = new Date(this.expiry(now, now));
       await this.prisma.serverSession.create({ data: { id: session.id, userId, csrfToken: session.csrfToken, createdAt: new Date(now), lastSeenAt: new Date(now), expiresAt } });
     }
     return session;
@@ -83,24 +87,25 @@ export class SessionService implements OnModuleDestroy {
       const raw = await this.redis.get(sessionKey(id));
       if (!raw) return null;
       const session = JSON.parse(raw) as SessionRecord;
+      const now = Date.now();
       const absoluteExpiry = session.createdAt + this.config.SESSION_ABSOLUTE_HOURS * 3600_000;
-      if (Date.now() >= absoluteExpiry) {
+      if (now >= absoluteExpiry || now >= session.lastSeenAt + this.config.SESSION_IDLE_MINUTES * 60_000) {
         await this.destroy(id);
         return null;
       }
-      session.lastSeenAt = Date.now();
-      await this.redis.set(sessionKey(id), JSON.stringify(session), "EX", this.config.SESSION_IDLE_MINUTES * 60);
+      session.lastSeenAt = now;
+      await this.redis.set(sessionKey(id), JSON.stringify(session), "EX", Math.ceil((this.expiry(session.createdAt, now) - now) / 1000));
       return session;
     }
     const stored = await this.prisma.serverSession.findUnique({ where: { id } });
     if (!stored) return null;
     const now = Date.now();
     const absoluteExpiry = stored.createdAt.getTime() + this.config.SESSION_ABSOLUTE_HOURS * 3600_000;
-    if (now >= absoluteExpiry || now >= stored.expiresAt.getTime()) {
+    if (now >= absoluteExpiry || now >= stored.expiresAt.getTime() || now >= stored.lastSeenAt.getTime() + this.config.SESSION_IDLE_MINUTES * 60_000) {
       await this.prisma.serverSession.delete({ where: { id } }).catch(() => undefined);
       return null;
     }
-    await this.prisma.serverSession.update({ where: { id }, data: { lastSeenAt: new Date(now), expiresAt: new Date(now + this.config.SESSION_IDLE_MINUTES * 60_000) } });
+    await this.prisma.serverSession.update({ where: { id }, data: { lastSeenAt: new Date(now), expiresAt: new Date(this.expiry(stored.createdAt.getTime(), now)) } });
     return { id: stored.id, userId: stored.userId, csrfToken: stored.csrfToken, createdAt: stored.createdAt.getTime(), lastSeenAt: now };
   }
 
@@ -137,12 +142,13 @@ export class SessionService implements OnModuleDestroy {
 
   setCookie(reply: FastifyReply, session: SessionRecord) {
     const production = this.config.NODE_ENV === "production";
+    const now = Date.now();
     reply.setCookie(this.sessionCookieName(), session.id, {
       httpOnly: true,
       secure: production,
       sameSite: "lax",
       path: "/",
-      maxAge: this.config.SESSION_IDLE_MINUTES * 60,
+      maxAge: Math.max(0, Math.ceil((this.expiry(session.createdAt, now) - now) / 1000)),
     });
   }
 
