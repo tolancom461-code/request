@@ -10,7 +10,7 @@ vi.mock("./components/items", () => ({ ItemsPage: () => <div data-testid="items-
 vi.mock("./components/requisition", () => ({ RequisitionPage: () => <div data-testid="requisition-page">Requisitions</div> }));
 vi.mock("./components/manager-approval", () => ({ ManagerApprovalPage: () => <div data-testid="manager-page">Manager review</div> }));
 vi.mock("./components/warehouse-operations", () => ({ WarehouseOperationsPage: () => <div data-testid="warehouse-page">Warehouse queue</div> }));
-vi.mock("./components/reports-dashboard", () => ({ ReportsDashboardPage: () => <div data-testid="reports-page">Reports dashboard</div> }));
+vi.mock("./components/reports-dashboard", () => ({ ReportsDashboardPage: ({ online }: { online: boolean }) => <div data-testid="reports-page" data-online={String(online)}>Reports dashboard</div> }));
 
 const permissions = ["admin.manage", "request.submit", "request.review", "warehouse.process", "reports.view", "reports.export"];
 
@@ -114,5 +114,33 @@ describe("Phase 10 rendered shell harness", () => {
     });
     expect(screen.getByTestId("items-page")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
+  });
+
+  test("does not interrupt a workspace during connection checks, but blocks it on a confirmed outage", async () => {
+    window.location.hash = "#/reports";
+    const ticks: Array<() => void> = [];
+    const realSetInterval = window.setInterval.bind(window);
+    vi.spyOn(window, "setInterval").mockImplementation((callback, timeout) => {
+      if (timeout === 30_000 && typeof callback === "function") ticks.push(callback as () => void);
+      return realSetInterval(callback, timeout) as unknown as ReturnType<typeof window.setInterval>;
+    });
+    const normalFetch = vi.mocked(fetch).getMockImplementation()!;
+    let settle: ((response: Response) => void) | undefined;
+    vi.mocked(fetch).mockImplementation((input, init) => String(input).includes("/health/live")
+      ? new Promise<Response>(resolve => { settle = resolve; }) : normalFetch(input, init));
+    const { App } = await import("./App");
+    render(<I18nextProvider i18n={i18n}><App /></I18nextProvider>);
+    const workspace = await screen.findByTestId("reports-page");
+    expect(workspace.getAttribute("data-online")).toBe("true");
+    await waitFor(() => expect(settle).toBeTypeOf("function"));
+    await act(async () => { settle!(json({ status: "ok" })); });
+    act(() => { ticks.forEach(tick => tick()); });
+    expect(workspace.getAttribute("data-online")).toBe("true");
+    await act(async () => { settle!(json({}, 503)); });
+    expect(workspace.getAttribute("data-online")).toBe("false");
+    act(() => { ticks.forEach(tick => tick()); });
+    expect(workspace.getAttribute("data-online")).toBe("false");
+    await act(async () => { settle!(json({ status: "ok" })); });
+    expect(workspace.getAttribute("data-online")).toBe("true");
   });
 });

@@ -61,6 +61,7 @@ import {
 } from "./components/foundation";
 import { resolveLocale } from "./theme";
 import { notifySessionExpired, SESSION_EXPIRED_EVENT } from "./session-events";
+import { brand } from "./brand";
 import { adminNavigation } from "./components/admin-navigation";
 import { AuditActivityWorkspace, Phase8NotificationButton } from "./components/notifications-audit";
 
@@ -126,7 +127,7 @@ export function LoginScreen({ error, busy, onSubmit }: { error: string | null; b
       <Container maxWidth="lg" sx={{ p: "0 !important" }}>
       <Box sx={{ display: "grid", gap: 3, gridTemplateColumns: { lg: "minmax(0, 1.1fr) minmax(380px, .9fr)" }, minWidth: 0, width: "100%" }}>
         <Box sx={{ alignSelf: "center", p: { xs: 1, md: 4 } }}>
-          <Chip color="secondary" label="VERDANT OPERATIONS" sx={{ fontWeight: 800, letterSpacing: ".08em" }} />
+          <Chip color="secondary" label={t("brandShortName")} sx={{ fontWeight: 800 }} />
           <Typography component="h1" variant="h2" sx={{ color: "primary.dark", maxWidth: "100%", mt: 2, overflowWrap: "anywhere" }}>{t("title")}</Typography>
           <Typography color="text.secondary" sx={{ fontSize: "1.08rem", maxWidth: 600, mt: 2 }}>{t("description")}</Typography>
           <Box sx={{ borderInlineStart: "4px solid", borderColor: "secondary.main", mt: 4, ps: 2 }}>
@@ -193,7 +194,6 @@ function ApplicationShell({ user, sessionError, onRetry, onLogout }: { user: Ses
 
   const checkApi = useCallback(async () => {
     if (!navigator.onLine) { setApiState("unavailable"); return; }
-    setApiState("checking");
     try {
       await getJson<{ status: string }>("/api/v1/health/live", { cache: "no-store" });
       setApiState("ready");
@@ -220,8 +220,8 @@ function ApplicationShell({ user, sessionError, onRetry, onLogout }: { user: Ses
   const drawer = (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <Toolbar sx={{ gap: 1.25 }}>
-        <Avatar sx={{ bgcolor: "primary.main", fontWeight: 800 }}>R</Avatar>
-        <Box><Typography component="p" sx={{ fontWeight: 800 }}>{t("workspace")}</Typography><Typography color="text.secondary" variant="caption">Verdant Operations</Typography></Box>
+        <Avatar sx={{ bgcolor: "primary.main", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{brand.englishShortName}</Avatar>
+        <Box sx={{ minWidth: 0, py: 1 }}><Typography component="p" sx={{ fontWeight: 800 }}>{t("brandShortName")}</Typography><Typography color="text.secondary" variant="caption" sx={{ display: "block", lineHeight: 1.6 }}>{t("title")}</Typography></Box>
       </Toolbar>
       <Divider />
       <List component="nav" aria-label={t("navigation")} sx={{ px: 1, py: 1.5 }}>
@@ -264,8 +264,8 @@ function ApplicationShell({ user, sessionError, onRetry, onLogout }: { user: Ses
             <Typography component="p" color="text.secondary" variant="caption">{t("workspace")}</Typography>
             <Typography component="h1" noWrap variant="h6" sx={{ fontWeight: 800 }}>{isReportsRoute ? t("reports") : isAuditRoute ? (path.startsWith("#/admin/user-activity") ? t("userActivity") : t("auditLog")) : isAdminRoute ? t("administration") : isWarehouseRoute ? t("warehouseQueue") : isManagerRoute ? t("managerInbox") : isRequisitionRoute ? t("requisitions") : t("dashboard")}</Typography>
           </Box>
-          <StatusChip online={online && apiState === "ready"} label={online && apiState === "ready" ? t("onlineStatus") : t("offlineStatus")} />
-          <Phase8NotificationButton online={online && apiState === "ready"} />
+          <StatusChip online={online && apiState !== "unavailable"} label={online && apiState !== "unavailable" ? t("onlineStatus") : t("offlineStatus")} />
+          <Phase8NotificationButton online={online && apiState !== "unavailable"} />
           <IconButton aria-label={t("language")} color="primary" onClick={(event) => setLanguageAnchor(event.currentTarget)}><LanguageOutlinedIcon /></IconButton>
           <IconButton aria-label={t("account")} onClick={(event) => setAccountAnchor(event.currentTarget)}><Avatar sx={{ bgcolor: "primary.dark", height: 34, width: 34 }}>{user.username.slice(0, 1).toUpperCase()}</Avatar></IconButton>
         </Toolbar>
@@ -279,7 +279,7 @@ function ApplicationShell({ user, sessionError, onRetry, onLogout }: { user: Ses
           {!online && <OfflineNotice message={t("offlineBanner")} />}
           {needRefresh && <Alert action={<Button color="inherit" onClick={() => void updateServiceWorker(true)} size="small">{t("refresh")}</Button>} role="status" severity="info" sx={{ mb: 2 }}>{t("updateAvailable")}</Alert>}
           <Suspense fallback={<RouteLoading />}>
-          {sessionError ? <SectionCard><ErrorState action={<Button onClick={onRetry} startIcon={<RefreshOutlinedIcon />} variant="outlined">{t("retry")}</Button>} message={sessionError} title={t("sessionError")} /></SectionCard> : isReportsRoute ? (canReports ? <ReportsDashboardPage canExport={canExportReports} online={online && apiState === "ready"} path={path} /> : <SectionCard><ErrorState message={t("report.loadFailed")} title={t("reports")} /></SectionCard>) : isAuditRoute ? (canManage ? <AuditActivityWorkspace online={online && apiState === "ready"} path={path} /> : <SectionCard><ErrorState message={t("adminAccessDenied")} title={t("administration")} /></SectionCard>) : isAdminRoute ? (canManage ? (path === "#/admin/items" ? <ItemsPage online={online && apiState === "ready"} /> : <AdministrationWorkspace online={online && apiState === "ready"} path={path} />) : <SectionCard><ErrorState message={t("adminAccessDenied")} title={t("administration")} /></SectionCard>) : isWarehouseRoute ? (canWarehouse ? <WarehouseOperationsPage online={online && apiState === "ready"} onNavigate={(next) => { window.location.hash = next; }} path={path} /> : <SectionCard><ErrorState message={t("warehouseAccessDenied")} title={t("warehouseQueue")} /></SectionCard>) : isManagerRoute ? (canReview ? <ManagerApprovalPage online={online && apiState === "ready"} onNavigate={(next) => { window.location.hash = next; }} path={path} /> : <SectionCard><ErrorState message={t("managerAccessDenied")} title={t("managerInbox")} /></SectionCard>) : isRequisitionRoute ? (canRequest ? <RequisitionPage online={online && apiState === "ready"} /> : <SectionCard><ErrorState message={t("requisitionAccessDenied")} title={t("requisitions")} /></SectionCard>) : (
+          {sessionError ? <SectionCard><ErrorState action={<Button onClick={onRetry} startIcon={<RefreshOutlinedIcon />} variant="outlined">{t("retry")}</Button>} message={sessionError} title={t("sessionError")} /></SectionCard> : isReportsRoute ? (canReports ? <ReportsDashboardPage canExport={canExportReports} online={online && apiState !== "unavailable"} path={path} /> : <SectionCard><ErrorState message={t("report.loadFailed")} title={t("reports")} /></SectionCard>) : isAuditRoute ? (canManage ? <AuditActivityWorkspace online={online && apiState !== "unavailable"} path={path} /> : <SectionCard><ErrorState message={t("adminAccessDenied")} title={t("administration")} /></SectionCard>) : isAdminRoute ? (canManage ? (path === "#/admin/items" ? <ItemsPage online={online && apiState !== "unavailable"} /> : <AdministrationWorkspace online={online && apiState !== "unavailable"} path={path} />) : <SectionCard><ErrorState message={t("adminAccessDenied")} title={t("administration")} /></SectionCard>) : isWarehouseRoute ? (canWarehouse ? <WarehouseOperationsPage online={online && apiState !== "unavailable"} onNavigate={(next) => { window.location.hash = next; }} path={path} /> : <SectionCard><ErrorState message={t("warehouseAccessDenied")} title={t("warehouseQueue")} /></SectionCard>) : isManagerRoute ? (canReview ? <ManagerApprovalPage online={online && apiState !== "unavailable"} onNavigate={(next) => { window.location.hash = next; }} path={path} /> : <SectionCard><ErrorState message={t("managerAccessDenied")} title={t("managerInbox")} /></SectionCard>) : isRequisitionRoute ? (canRequest ? <RequisitionPage online={online && apiState !== "unavailable"} /> : <SectionCard><ErrorState message={t("requisitionAccessDenied")} title={t("requisitions")} /></SectionCard>) : (
             <>
               <PageHeader actions={<Button onClick={() => setScopeOpen(true)} variant="outlined">{t("viewScope")}</Button>} description={t("welcomeDescription")} eyebrow="PHASE 2C · T3 + I1" title={t("welcome", { name: user.username })} />
               <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1.4fr 1fr" } }}>

@@ -5,4 +5,5 @@ export const adminNavigation = [
   { path: "#/admin/categories", key: "categories" },
   { path: "#/admin/users", key: "users" },
   { path: "#/admin/roles", key: "rolesPermissions" },
+  { path: "#/admin/document-numbering", key: "numberingCenter" },
 ] as const;

@@ -121,7 +121,7 @@ describe("Phase 5 branch requisition workflow", () => {
     expect((await request(app.getHttpServer()).post(url("/requisitions")).set("Cookie", ownerCookie).send({ branchId })).status).toBe(401);
     const created = await request(app.getHttpServer()).post(url("/requisitions")).set(mutate(ownerCookie, ownerCsrf)).send({ branchId });
     expect(created.status).toBe(201);
-    expect(created.body.requestNumber).toMatch(/^REQ-/);
+    expect(created.body.requestNumber).toMatch(/^Req-\d{4}-\d{4,}$/);
     const requestId = created.body.id as string;
     const resumed = await request(app.getHttpServer()).post(url("/requisitions")).set(mutate(ownerCookie, ownerCsrf)).send({ branchId });
     expect(resumed.status).toBe(201);

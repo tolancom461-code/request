@@ -1,6 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { notifySessionExpired } from "../session-events";
+import { DocumentNumberingPage } from "./document-numbering";
 import {
   Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
   FormControl, FormControlLabel, FormGroup, InputLabel, MenuItem, Pagination, Paper,
@@ -171,6 +172,7 @@ function RoleDialog({ role, permissions, online, onClose, onSaved }: { role: Rol
 
 export function AdministrationWorkspace({ path, online }: { path: string; online: boolean }) {
   const spec = useMemo(() => moduleSpecs.find((candidate) => path.endsWith(candidate.key)), [path]);
+  if (path === "#/admin/document-numbering") return <DocumentNumberingPage online={online} />;
   if (spec) return <MasterDataPage online={online} spec={spec} />;
   if (path.endsWith("users")) return <UsersPage online={online} />;
   return <RolesPage online={online} />;

@@ -6,13 +6,12 @@ import { ItemSupplierService } from "./item-supplier.service.js";
 import { RequestLinePreparationService } from "./request-line-preparation.service.js";
 import { RequestSubmissionService } from "./request-submission.service.js";
 import { StorageService } from "./storage.service.js";
+import { DocumentNumberingService } from "./document-numbering.service.js";
 
 type Tx = Prisma.TransactionClient;
 type ListInput = { page: number; pageSize: number; search?: string };
 type CartInput = { branchItemId: string; itemUnitId: string; requestedQuantity: string | number; expectedRowVersion?: number };
 type RequestLineWithDisplay = Prisma.RequestItemGetPayload<{ include: { itemSnapshot: true; itemUnitSnapshot: { include: { unit: true } } } }>;
-
-const requestNumber = () => `REQ-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${crypto.randomUUID().slice(0, 10).toUpperCase()}`;
 
 @Injectable()
 export class RequisitionService {
@@ -23,6 +22,7 @@ export class RequisitionService {
     @Inject(RequestLinePreparationService) private readonly lines: RequestLinePreparationService,
     @Inject(RequestSubmissionService) private readonly submissions: RequestSubmissionService,
     @Inject(StorageService) private readonly storage: StorageService,
+    @Inject(DocumentNumberingService) private readonly numbering: DocumentNumberingService,
   ) {}
 
   private async assertBranch(userId: string, branchId: string) {
@@ -114,23 +114,20 @@ export class RequisitionService {
 
   async createDraft(userId: string, branchId: string) {
     await this.assertBranch(userId, branchId);
-    const existing = await this.prisma.requestRecord.findFirst({
-      where: { branchId, createdByUserId: userId, status: RequestStatus.draft },
-      orderBy: { updatedAt: "desc" },
+    const requestId = await this.numbering.transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+      const existing = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM requests
+        WHERE branch_id = ${branchId} AND created_by_user_id = ${userId} AND status = 'draft'
+        ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`;
+      if (existing[0]) return existing[0].id;
+      const requestNumber = await this.numbering.next(tx, "requisition");
+      const request = await tx.requestRecord.create({ data: { requestNumber, branchId, createdByUserId: userId, status: RequestStatus.draft } });
+      await tx.auditLog.create({ data: { actorType: "user", actorUserId: userId, entityType: "request", entityId: request.id, action: "draft_created", afterData: { branchId } } });
+      return request.id;
     });
-    if (existing) return this.prisma.$transaction((tx) => this.detailInTransaction(tx, existing.id));
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      try {
-        return await this.prisma.$transaction(async (tx) => {
-          const request = await tx.requestRecord.create({ data: { requestNumber: requestNumber(), branchId, createdByUserId: userId, status: RequestStatus.draft } });
-          await tx.auditLog.create({ data: { actorType: "user", actorUserId: userId, entityType: "request", entityId: request.id, action: "draft_created", afterData: { branchId } } });
-          return this.detailInTransaction(tx, request.id);
-        }, { maxWait: 10_000, timeout: 60_000 });
-      } catch (error) {
-        if (attempt === 3 || !(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
-      }
-    }
-    throw new ConflictException("Could not allocate a request number.");
+    // A locking read can observe a newer draft than TiDB's transaction snapshot.
+    // Read its details after commit, also releasing the numbering lock sooner.
+    return this.prisma.$transaction(tx => this.detailInTransaction(tx, requestId), { maxWait: 10_000, timeout: 60_000 });
   }
 
   private async lockRequest(tx: Tx, requestId: string, expectedRowVersion?: number) {

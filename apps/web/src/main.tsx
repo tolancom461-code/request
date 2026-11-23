@@ -6,6 +6,7 @@ import "./i18n";
 import "./styles.css";
 import { App } from "./App";
 import i18n from "./i18n";
+import { brandTitle } from "./brand";
 import { createVerdantTheme, getEmotionCache, localeMetadata, resolveLocale, type SupportedLocale } from "./theme";
 
 import "@fontsource/inter/400.css";
@@ -34,6 +35,8 @@ function ProductionRoot() {
     document.documentElement.lang = metadata.lang;
     document.documentElement.dir = metadata.direction;
     document.documentElement.dataset.locale = locale;
+    document.title = brandTitle(locale);
+    document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.setAttribute("href", locale === "ar" ? "/manifest-ar.webmanifest" : "/manifest.webmanifest");
   }, [locale, metadata.direction, metadata.lang]);
 
   return (

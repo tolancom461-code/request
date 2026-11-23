@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { brand, brandTitle } from "./src/brand";
 
 export default defineConfig({
   plugins: [
@@ -9,10 +10,14 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "prompt",
-      includeAssets: ["icon.svg"],
+      includeAssets: ["icon.svg", "manifest-ar.webmanifest"],
       manifest: {
-        name: "Restaurant Branch Requisition",
-        short_name: "Branch Requisition",
+        id: "/",
+        name: brandTitle("en"),
+        short_name: brand.englishShortName,
+        description: brand.arabicName,
+        lang: "en",
+        dir: "ltr",
         start_url: "/",
         scope: "/",
         display: "standalone",

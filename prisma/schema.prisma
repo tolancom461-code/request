@@ -361,3 +361,13 @@ model ServerSession {
   @@index([expiresAt])
   @@map("server_sessions")
 }
+
+model DocumentNumberSequence {
+  prefix    String   @db.VarChar(16)
+  year      Int
+  lastValue BigInt   @default(0) @map("last_value") @db.UnsignedBigInt
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@id([prefix, year])
+  @@map("document_number_sequences")
+}

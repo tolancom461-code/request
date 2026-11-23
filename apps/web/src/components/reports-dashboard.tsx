@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { notifySessionExpired } from "../session-events";
 import {
@@ -22,8 +22,8 @@ const asString = (value: unknown) => value === null || value === undefined ? "�
 const isoDay = (value: string, end = false) => new Date(`${value}T${end ? "23:59:59.999" : "00:00:00.000"}`).toISOString();
 const daysAgo = (days: number) => { const date = new Date(); date.setDate(date.getDate() - days); return date.toISOString().slice(0, 10); };
 
-async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(path, { cache: "no-store", credentials: "same-origin" });
+async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(path, { cache: "no-store", credentials: "same-origin", signal });
   const body = await response.json().catch(() => null) as T | null;
   notifySessionExpired(response.status, body);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -38,6 +38,14 @@ function MetricCard({ label, value, note }: { label: string; value: string | num
   return <Card variant="outlined" sx={{ minWidth: 0 }}><CardContent sx={{ p: 2.1, "&:last-child": { pb: 2.1 } }}><Typography color="text.secondary" variant="body2">{label}</Typography><Typography component="p" sx={{ color: "primary.dark", fontSize: "1.7rem", fontWeight: 800, mt: 0.6 }}>{value}</Typography>{note && <Typography color="text.secondary" variant="caption">{note}</Typography>}</CardContent></Card>;
 }
 
+function reportQuery(from: string, to: string, branchId = "", statuses: string[] = [], search = "") {
+  const params = new URLSearchParams({ from: isoDay(from), to: isoDay(to, true), page: "1", pageSize: "48", sort: "submittedAt", direction: "desc" });
+  if (branchId) params.set("branchId", branchId);
+  if (statuses.length) params.set("status", statuses.join(","));
+  if (search.trim()) params.set("search", search.trim());
+  return params;
+}
+
 export function ReportsDashboardPage({ online, path, canExport }: { online: boolean; path: string; canExport: boolean }) {
   const { i18n, t } = useTranslation();
   const locale = i18n.language.startsWith("ur") ? "ur-PK" : i18n.language.startsWith("en") ? "en-GB" : "ar-SA";
@@ -48,33 +56,37 @@ export function ReportsDashboardPage({ online, path, canExport }: { online: bool
   const [statuses, setStatuses] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [options, setOptions] = useState<FilterOptions | null>(null);
-  const [data, setData] = useState<ReportResponse | null>(null);
+  const [result, setResult] = useState<{ path: string; data: ReportResponse } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [optionsVersion, setOptionsVersion] = useState(0);
+  const [optionsError, setOptionsError] = useState(false);
+  const [query, setQuery] = useState(() => reportQuery(from, to));
+  const reportPath = `/api/v1/reports/${tab}?${query.toString()}`;
+  const data = result?.path === reportPath ? result.data : null;
+  const refresh = () => { setRefreshKey(value => value + 1); setOptionsVersion(value => value + 1); };
 
-  const query = useMemo(() => {
-    const params = new URLSearchParams({ from: isoDay(from), to: isoDay(to, true), page: "1", pageSize: "48", sort: "submittedAt", direction: "desc" });
-    if (branchId) params.set("branchId", branchId);
-    if (statuses.length) params.set("status", statuses.join(","));
-    if (search.trim()) params.set("search", search.trim());
-    return params;
-  }, [from, to, branchId, statuses, search]);
+  useEffect(() => {
+    if (!online) return;
+    const controller = new AbortController();
+    setOptionsError(false);
+    void getJson<FilterOptions>("/api/v1/reports/filters", controller.signal)
+      .then(value => { if (!controller.signal.aborted) setOptions(value); })
+      .catch(() => { if (!controller.signal.aborted) setOptionsError(true); });
+    return () => controller.abort();
+  }, [online, optionsVersion]);
 
-  const load = useCallback(async () => {
+  useEffect(() => {
     if (!online) { setLoading(false); return; }
+    const controller = new AbortController();
     setLoading(true); setError(null);
-    try {
-      const [nextOptions, nextData] = await Promise.all([
-        getJson<FilterOptions>("/api/v1/reports/filters"),
-        getJson<ReportResponse>(`/api/v1/reports/${tab}?${query.toString()}`),
-      ]);
-      setOptions(nextOptions); setData(nextData);
-    } catch { setError("reportLoadFailed"); setData(null); }
-    finally { setLoading(false); }
-  }, [online, query, tab]);
-
-  useEffect(() => { void load(); }, [load, refreshKey]);
+    void getJson<ReportResponse>(reportPath, controller.signal)
+      .then(value => { if (!controller.signal.aborted) setResult({ path: reportPath, data: value }); })
+      .catch(() => { if (!controller.signal.aborted) setError("reportLoadFailed"); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [online, reportPath, query, refreshKey]);
   const updateTab = (_: unknown, next: TabKey) => { window.location.hash = tabPath(next); };
   const exportCurrent = () => {
     if (!canExport || !online || tab === "dashboard") return;
@@ -93,23 +105,23 @@ export function ReportsDashboardPage({ online, path, canExport }: { online: bool
       eyebrow="PHASE 9 · REPORTS"
       title={t("report.title")}
       description={t("report.description")}
-      actions={<Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}><Button disabled={loading || !online} onClick={() => setRefreshKey((value) => value + 1)} startIcon={<RefreshOutlinedIcon />} variant="outlined">{t("retry")}</Button>{tab !== "dashboard" && <Button disabled={!canExport || !online} onClick={exportCurrent} startIcon={<DownloadOutlinedIcon />} variant="contained">{t("report.exportCsv")}</Button>}</Box>}
+      actions={<Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}><Button disabled={loading || !online} onClick={refresh} startIcon={<RefreshOutlinedIcon />} variant="outlined">{t("retry")}</Button>{tab !== "dashboard" && <Button disabled={!canExport || !online} onClick={exportCurrent} startIcon={<DownloadOutlinedIcon />} variant="contained">{t("report.exportCsv")}</Button>}</Box>}
     />
     {!online && <OfflineNotice message={t("report.offline")} />}
     <Box sx={{ mt: 2 }}><SectionCard title={t("report.filters")}>
-      <Box component="form" onSubmit={(event) => { event.preventDefault(); setRefreshKey((value) => value + 1); }} sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(5, minmax(0, 1fr))" } }}>
-        <TextField label={t("report.from")} onChange={(event) => setFrom(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} type="date" value={from} />
-        <TextField label={t("report.to")} onChange={(event) => setTo(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} type="date" value={to} />
+      <Box component="form" onSubmit={(event) => { event.preventDefault(); if (from && to) setQuery(reportQuery(from, to, branchId, statuses, search)); }} sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(5, minmax(0, 1fr))" } }}>
+        <TextField label={t("report.from")} onChange={(event) => setFrom(event.target.value)} required slotProps={{ inputLabel: { shrink: true } }} type="date" value={from} />
+        <TextField label={t("report.to")} onChange={(event) => setTo(event.target.value)} required slotProps={{ inputLabel: { shrink: true } }} type="date" value={to} />
         <FormControl><InputLabel id="report-branch-label">{t("branch")}</InputLabel><Select label={t("branch")} labelId="report-branch-label" onChange={(event) => setBranchId(String(event.target.value))} value={branchId}><MenuItem value="">{t("report.allAuthorizedBranches")}</MenuItem>{options?.branches.map((branch) => <MenuItem key={branch.id} value={branch.id}>{branch.code} · {i18n.language.startsWith("en") ? branch.nameEn : branch.nameAr}</MenuItem>)}</Select></FormControl>
         <FormControl><InputLabel id="report-status-label">{t("status")}</InputLabel><Select label={t("status")} labelId="report-status-label" multiple onChange={(event) => setStatuses((event.target.value as string[]))} renderValue={(selected) => (selected as string[]).map((value) => t(value)).join("، ")} value={statuses}>{options?.statuses.map((status) => <MenuItem key={status} value={status}>{t(status)}</MenuItem>)}</Select></FormControl>
         <TextField label={t("report.search")} onChange={(event) => setSearch(event.target.value)} value={search} />
-        <Box sx={{ alignItems: "center", display: "flex", gap: 1, gridColumn: { lg: "span 5" } }}><Button disabled={!online} type="submit" variant="contained">{t("apply")}</Button><Button onClick={() => { setFrom(daysAgo(30)); setTo(daysAgo(0)); setBranchId(""); setStatuses([]); setSearch(""); setRefreshKey((value) => value + 1); }} variant="text">{t("report.reset")}</Button><Typography color="text.secondary" variant="caption">{t("report.filterScopeNote")}</Typography></Box>
+        <Box sx={{ alignItems: "center", display: "flex", gap: 1, gridColumn: { lg: "span 5" } }}><Button disabled={!online} type="submit" variant="contained">{t("apply")}</Button><Button onClick={() => { const nextFrom = daysAgo(30), nextTo = daysAgo(0); setFrom(nextFrom); setTo(nextTo); setBranchId(""); setStatuses([]); setSearch(""); setQuery(reportQuery(nextFrom, nextTo)); }} variant="text">{t("report.reset")}</Button><Typography color="text.secondary" variant="caption">{t("report.filterScopeNote")}</Typography></Box>
       </Box>
     </SectionCard></Box>
     <Box sx={{ mt: 2 }}><SectionCard>
       <Tabs aria-label={t("report.tabs")} onChange={updateTab} scrollButtons="auto" value={tab} variant="scrollable">{tabOrder.map((entry) => <Tab key={entry} label={labelFor(t, entry)} value={entry} />)}</Tabs>
       <Divider sx={{ mt: 1 }} />
-      {loading ? <Box sx={{ p: 3 }}><LoadingState message={t("report.loading")} title={labelFor(t, tab)} /></Box> : error ? <Box sx={{ p: 3 }}><ErrorState action={<Button onClick={() => setRefreshKey((value) => value + 1)} variant="outlined">{t("retry")}</Button>} message={t(error)} title={labelFor(t, tab)} /></Box> : !online ? <Box sx={{ p: 3 }}><Alert severity="warning">{t("report.offline")}</Alert></Box> : dashboard ? <DashboardView dashboard={dashboard} locale={locale} t={t} statusRows={statusRows} /> : <ReportTable tab={tab} data={reportRows} locale={locale} t={t} />}
+      {loading ? <Box sx={{ p: 3 }}><LoadingState message={t("report.loading")} title={labelFor(t, tab)} /></Box> : error || optionsError ? <Box sx={{ p: 3 }}><ErrorState action={<Button onClick={refresh} variant="outlined">{t("retry")}</Button>} message={t(error ?? "reportLoadFailed")} title={labelFor(t, tab)} /></Box> : !online ? <Box sx={{ p: 3 }}><Alert severity="warning">{t("report.offline")}</Alert></Box> : dashboard ? <DashboardView dashboard={dashboard} locale={locale} t={t} statusRows={statusRows} /> : <ReportTable tab={tab} data={reportRows} locale={locale} t={t} />}
     </SectionCard></Box>
   </Box>;
 }

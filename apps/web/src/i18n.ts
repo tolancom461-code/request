@@ -1,5 +1,6 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
+import { brand, brandTitle } from "./brand";
 
 const phase6Translations = {
   ar: {
@@ -59,8 +60,9 @@ const resources = {
   ar: {
     translation: {
       shellLabel: "غلاف تقني مؤقت",
-      title: "منصة طلبات الفروع",
-      description: "أساس تشغيلي آمن ومتعدد اللغات. تتوفر وحدات الأعمال في المراحل المعتمدة فقط.",
+      title: brand.arabicName,
+      brandShortName: brand.arabicShortName,
+      description: "إدارة طلبات المطاعم والموردين والاعتمادات وعمليات المستودع.",
       loginTitle: "تسجيل الدخول الآمن",
       loginDescription: "استخدم بيانات حسابك المعتمدة للوصول إلى مساحة العمل.",
       email: "البريد الإلكتروني",
@@ -133,8 +135,9 @@ const resources = {
   en: {
     translation: {
       shellLabel: "Temporary technical shell",
-      title: "Branch Requisition Platform",
-      description: "A secure multilingual operational foundation. Business modules appear only in approved phases.",
+      title: brandTitle("en"),
+      brandShortName: brand.englishShortName,
+      description: "Manage restaurant requisitions, suppliers, approvals, and warehouse operations.",
       loginTitle: "Secure sign in",
       loginDescription: "Use your approved account credentials to access the workspace.",
       email: "Email address",
@@ -207,8 +210,9 @@ const resources = {
   ur: {
     translation: {
       shellLabel: "عارضی تکنیکی شیل",
-      title: "برانچ ریکوزیشن پلیٹ فارم",
-      description: "محفوظ اور کثیر لسانی عملی بنیاد۔ کاروباری ماڈیول صرف منظور شدہ مراحل میں دستیاب ہوں گے۔",
+      title: brandTitle("en"),
+      brandShortName: brand.englishShortName,
+      description: "ریسٹورنٹ کی ریکوزیشنز، سپلائرز، منظوریوں اور گودام کے کام کا انتظام۔",
       loginTitle: "محفوظ سائن اِن",
       loginDescription: "ورک اسپیس تک رسائی کے لیے اپنے منظور شدہ اکاؤنٹ کی اسناد استعمال کریں۔",
       email: "ای میل پتہ",
@@ -304,6 +308,13 @@ const setupTranslations = {
   } },
 };
 for (const locale of ["ar", "en", "ur"] as const) Object.assign(resources[locale].translation, phase6Translations[locale], phase7Translations[locale], phase8Translations[locale], phase9Translations[locale], setupTranslations[locale]);
+
+const numberingTranslations = {
+  ar: { numberingCenter: "مركز الترقيم", numberingDescription: "ترقيم تلقائي مستقل لكل نوع مستند وسنة. يبدأ التسلسل من 0001 عند بداية السنة بتوقيت الرياض، ويستمر بعد 9999. الأرقام المحفوظة لا تتغير.", numberingYear: "السنة الحالية: {{year}}", numberingType: "نوع المستند", numberingPrefix: "البادئة", numberingLast: "آخر رقم صادر هذه السنة", numberingNotStarted: "لم يبدأ بعد", numberingLoadFailed: "تعذر تحميل بيانات الترقيم.", numberingTypes: { requisition: "طلب احتياج" } },
+  en: { numberingCenter: "Numbering center", numberingDescription: "Each document type has an annual sequence starting at 0001, using Riyadh time. Numbering continues beyond 9999. Saved numbers remain unchanged.", numberingYear: "Current year: {{year}}", numberingType: "Document type", numberingPrefix: "Prefix", numberingLast: "Last number issued this year", numberingNotStarted: "Not started", numberingLoadFailed: "Numbering data could not be loaded.", numberingTypes: { requisition: "Requisition" } },
+  ur: { numberingCenter: "نمبرنگ مرکز", numberingDescription: "ہر دستاویز کی الگ سالانہ ترتیب ریاض کے وقت کے مطابق 0001 سے شروع ہوتی ہے اور 9999 کے بعد جاری رہتی ہے۔ محفوظ نمبر تبدیل نہیں ہوتے۔", numberingYear: "موجودہ سال: {{year}}", numberingType: "دستاویز کی قسم", numberingPrefix: "سابقہ", numberingLast: "اس سال کا آخری نمبر", numberingNotStarted: "ابھی شروع نہیں ہوا", numberingLoadFailed: "نمبرنگ کی معلومات لوڈ نہیں ہو سکیں۔", numberingTypes: { requisition: "ریکوزیشن" } },
+};
+for (const locale of ["ar", "en", "ur"] as const) Object.assign(resources[locale].translation, numberingTranslations[locale]);
 
 void i18n.use(initReactI18next).init({
   resources,

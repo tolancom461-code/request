@@ -14,6 +14,8 @@ import { ItemsService } from "./items.service.js";
 import { ItemSetupController } from "./item-setup.controller.js";
 import { ItemSetupService } from "./item-setup.service.js";
 import { ItemSupplierService } from "./item-supplier.service.js";
+import { DocumentNumberingService } from "./document-numbering.service.js";
+import { DocumentNumberingController } from "./document-numbering.controller.js";
 import { BranchScopeService, CsrfGuard, Permissions, PermissionsGuard, Public, SessionGuard } from "./security.js";
 import { SessionService, type SessionRecord } from "./session.service.js";
 import { StorageService } from "./storage.service.js";
@@ -156,7 +158,7 @@ class FoundationController {
 }
 
 @Module({
-  controllers: [AuthController, HealthController, FoundationController, AdminController, AuditActivityController, ReportsController, ItemSetupController, ItemsController, RequisitionController, ManagerApprovalController, WarehouseOperationsController, NotificationController],
+  controllers: [AuthController, HealthController, FoundationController, AdminController, DocumentNumberingController, AuditActivityController, ReportsController, ItemSetupController, ItemsController, RequisitionController, ManagerApprovalController, WarehouseOperationsController, NotificationController],
   providers: [
     PrismaService,
     SessionService,
@@ -165,6 +167,7 @@ class FoundationController {
     RequestSubmissionService,
     RequestLinePreparationService,
     ItemSupplierService,
+    DocumentNumberingService,
     MasterDataIntegrityService,
     AdminService,
     ItemsService,
