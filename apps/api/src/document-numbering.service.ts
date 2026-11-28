@@ -3,7 +3,10 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "./prisma.service.js";
 
 // Every automatically numbered document type is registered here with its own unique prefix.
-export const DOCUMENT_NUMBERING = { requisition: { prefix: "Req", digits: 4 } } as const;
+export const DOCUMENT_NUMBERING = {
+  requisition: { prefix: "Req", digits: 4 },
+  purchase: { prefix: "Pur", digits: 4 },
+} as const;
 export type NumberingType = keyof typeof DOCUMENT_NUMBERING;
 export const NUMBERING_TIME_ZONE = "Asia/Riyadh";
 const yearFormatter = new Intl.DateTimeFormat("en-US", { year: "numeric", timeZone: NUMBERING_TIME_ZONE, calendar: "gregory", numberingSystem: "latn" });
@@ -17,10 +20,10 @@ export function formatDocumentNumber(prefix: string, year: number, sequence: big
 export class DocumentNumberingService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  async transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>, isolationLevel?: Prisma.TransactionIsolationLevel): Promise<T> {
     for (let attempt = 0; attempt < 6; attempt++) {
       try {
-        return await this.prisma.$transaction(work, { maxWait: 30_000, timeout: 60_000 });
+        return await this.prisma.$transaction(work, { maxWait: 30_000, timeout: 60_000, isolationLevel });
       } catch (error) {
         if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2034") throw error;
         if (attempt === 5) throw new ConflictException("Document numbering is busy; retry saving.");

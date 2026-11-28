@@ -1,0 +1,22 @@
+#warehouse-supplier-print { display: none; }
+
+.warehouse-supplier-document dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: .25rem 1rem;
+  margin-block: 1rem;
+}
+
+.warehouse-supplier-document dt { font-weight: 700; }
+.warehouse-supplier-document dd { margin: 0; }
+.warehouse-supplier-document table { border-collapse: collapse; width: 100%; }
+.warehouse-supplier-document th,
+.warehouse-supplier-document td { border: 1px solid currentColor; padding: .5rem; text-align: start; }
+
+@media print {
+  body:has(> #warehouse-supplier-print) { overflow: visible !important; }
+  body:has(> #warehouse-supplier-print) > :not(#warehouse-supplier-print) { display: none !important; }
+  #warehouse-supplier-print { color: #000; display: block; padding: 8mm; }
+  #warehouse-supplier-print h2 { break-after: avoid; }
+  #warehouse-supplier-print tr { break-inside: avoid; }
+}

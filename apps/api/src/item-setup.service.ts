@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
+import { assertBaseUnitCanChange } from "./master-data-integrity.service.js";
 import { PrismaService } from "./prisma.service.js";
 import { StorageService } from "./storage.service.js";
 
@@ -23,7 +24,17 @@ export type SetupItemInput = {
   removeImage?: boolean;
 };
 export type SetupImage = { bytes: Uint8Array; contentType: string };
+export type SetupSuppliersInput = {
+  supplierIds: string[];
+  defaultSupplierId: string;
+  expectedSupplierIds: string[];
+  expectedDefaultSupplierId: string | null;
+};
 const txOptions = { maxWait: 10_000, timeout: 60_000 };
+const lockedItemTxOptions = {
+  ...txOptions,
+  isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+};
 const sameIds = (a: string[], b: string[]) =>
   [...a].sort().join(",") === [...b].sort().join(",");
 
@@ -62,6 +73,10 @@ export class ItemSetupService {
       include: {
         category: true,
         defaultSupplier: true,
+        supplierLinks: {
+          include: { supplier: true },
+          orderBy: { supplierId: "asc" },
+        },
         itemUnits: { include: { unit: true } },
         branchItems: { select: { branchId: true, status: true } },
       },
@@ -139,9 +154,11 @@ export class ItemSetupService {
         if (before) await tx.item.update({ where: { id }, data });
         else await tx.item.create({ data: { id, ...data } });
         const currentBase = await tx.itemUnit.findFirst({
-          where: { itemId: id, isBaseUnit: true, status: "active" },
+          where: { itemId: id, isBaseUnit: true },
+          orderBy: { status: "asc" },
         });
         if (before && currentBase && currentBase.unitId !== baseUnitId) {
+          await assertBaseUnitCanChange(tx, id);
           const alternatives = await tx.itemUnit.count({
             where: { itemId: id, status: "active", isBaseUnit: false },
           });
@@ -190,7 +207,7 @@ export class ItemSetupService {
             defaultSupplier: true,
           },
         });
-      }, txOptions);
+      }, lockedItemTxOptions);
       if ((nextImageKey || input.removeImage) && previousImageKey)
         await this.storage
           .removeItemImage(previousImageKey)
@@ -219,6 +236,11 @@ export class ItemSetupService {
       });
       if (!supplier)
         throw new BadRequestException("Choose an active supplier.");
+      await tx.itemSupplier.upsert({
+        where: { itemId_supplierId: { itemId, supplierId } },
+        create: { itemId, supplierId },
+        update: {},
+      });
       await tx.item.update({
         where: { id: itemId },
         data: { defaultSupplierId: supplierId },
@@ -235,7 +257,91 @@ export class ItemSetupService {
         }
       );
       return { itemId, supplierId };
-    }, txOptions);
+    }, lockedItemTxOptions);
+  }
+
+  async setSuppliers(
+    actorUserId: string,
+    itemId: string,
+    input: SetupSuppliersInput
+  ) {
+    const {
+      supplierIds,
+      defaultSupplierId,
+      expectedSupplierIds,
+      expectedDefaultSupplierId,
+    } = input;
+    const selected = new Set(supplierIds);
+    if (
+      selected.size !== supplierIds.length ||
+      new Set(expectedSupplierIds).size !== expectedSupplierIds.length
+    )
+      throw new BadRequestException(
+        "Supplier selections cannot contain duplicates."
+      );
+    if (!selected.has(defaultSupplierId))
+      throw new BadRequestException("Choose a default from the linked suppliers.");
+
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM items WHERE id = ${itemId} FOR UPDATE`;
+      const item = await tx.item.findUnique({
+        where: { id: itemId },
+        include: { supplierLinks: { select: { supplierId: true } } },
+      });
+      if (!item || item.deletedAt)
+        throw new NotFoundException("Item was not found.");
+
+      const previousSupplierIds = item.supplierLinks.map(link => link.supplierId);
+      const previousDefaultSupplierId = item.defaultSupplierId;
+      const result = { itemId, supplierIds, defaultSupplierId };
+      const unchanged =
+        previousDefaultSupplierId === defaultSupplierId &&
+        sameIds(previousSupplierIds, supplierIds);
+      if (
+        !unchanged &&
+        (previousDefaultSupplierId !== expectedDefaultSupplierId ||
+          !sameIds(previousSupplierIds, expectedSupplierIds))
+      )
+        throw new ConflictException(
+          "Item suppliers changed; reload before saving."
+        );
+
+      const previous = new Set(previousSupplierIds);
+      const added = supplierIds.filter(supplierId => !previous.has(supplierId));
+      const removed = previousSupplierIds.filter(
+        supplierId => !selected.has(supplierId)
+      );
+      const requiredActiveIds = [...new Set([defaultSupplierId, ...added])].sort();
+      const activeSuppliers = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM suppliers
+        WHERE id IN (${Prisma.join(requiredActiveIds)})
+          AND status = 'active' AND deleted_at IS NULL
+        ORDER BY id FOR UPDATE
+      `;
+      if (activeSuppliers.length !== requiredActiveIds.length)
+        throw new BadRequestException(
+          "Choose an active default supplier and active suppliers for new links."
+        );
+      if (unchanged) return result;
+
+      if (added.length)
+        await tx.itemSupplier.createMany({
+          data: added.map(supplierId => ({ itemId, supplierId })),
+        });
+      if (previousDefaultSupplierId !== defaultSupplierId)
+        await tx.item.update({ where: { id: itemId }, data: { defaultSupplierId } });
+      if (removed.length)
+        await tx.itemSupplier.deleteMany({
+          where: { itemId, supplierId: { in: removed } },
+        });
+      await this.audit(tx, actorUserId, "item", itemId, "setup_suppliers_saved", {
+        previousSupplierIds,
+        previousDefaultSupplierId,
+        supplierIds,
+        defaultSupplierId,
+      });
+      return result;
+    }, lockedItemTxOptions);
   }
 
   async assignRestaurantItems(

@@ -26,11 +26,14 @@ const itemId = "10000000-0000-4000-8000-000000000001";
 const unitId = "10000000-0000-4000-8000-000000000002";
 const categoryId = "10000000-0000-4000-8000-000000000003";
 const branchId = "10000000-0000-4000-8000-000000000004";
+const supplierId = "10000000-0000-4000-8000-000000000005";
+const alternateSupplierId = "10000000-0000-4000-8000-000000000006";
 const service = {
   options: vi.fn(),
   items: vi.fn(),
   saveItem: vi.fn(),
   setSupplier: vi.fn(),
+  setSuppliers: vi.fn(),
   assignRestaurantItems: vi.fn(),
 };
 const prisma = {
@@ -167,5 +170,26 @@ describe("Protected item setup HTTP routes", () => {
       [itemId],
       []
     );
+  });
+
+  it("passes the default, alternate links, and prior state through a protected save", async () => {
+    const url = `/api/v1/admin/item-setup/items/${itemId}/suppliers`;
+    const payload = {
+      supplierIds: [supplierId, alternateSupplierId],
+      defaultSupplierId: alternateSupplierId,
+      expectedSupplierIds: [supplierId],
+      expectedDefaultSupplierId: supplierId,
+    };
+    const denied = await app.inject({
+      method: "POST",
+      url,
+      headers: { ...headers, cookie: "session=employee" },
+      payload,
+    });
+    expect(denied.statusCode).toBe(403);
+    expect(service.setSuppliers).not.toHaveBeenCalled();
+    const response = await app.inject({ method: "POST", url, headers, payload });
+    expect(response.statusCode).toBe(201);
+    expect(service.setSuppliers).toHaveBeenCalledWith("admin", itemId, payload);
   });
 });

@@ -60,6 +60,10 @@ model User {
   auditLogs         AuditLog[]         @relation("AuditUserActor")
   notifications     Notification[]
   sessions          ServerSession[]
+  createdPurchasePlans PurchasePlan[] @relation("PurchasePlanCreator")
+  issuedPurchasePlans  PurchasePlan[] @relation("PurchasePlanIssuer")
+  purchaseReceipts     PurchaseReceipt[]
+  openingPurchases     OpeningPurchase[]
 
   @@map("users")
 }
@@ -142,6 +146,11 @@ model Supplier {
   deletedAt    DateTime?    @map("deleted_at") @db.DateTime(3)
   snapshots    RequestItem[] @relation("RequestItemSupplierSnapshot")
   defaultItems Item[]        @relation("ItemDefaultSupplier")
+  itemLinks    ItemSupplier[]
+  purchaseAllocations PurchaseAllocation[]
+  purchaseSheets PurchaseSheet[]
+  purchaseReceipts PurchaseReceipt[]
+  openingPurchases OpeningPurchase[]
 
   @@map("suppliers")
 }
@@ -186,10 +195,24 @@ model Item {
   itemUnits      ItemUnit[]
   branchItems    BranchItem[]
   snapshots      RequestItem[] @relation("RequestItemItemSnapshot")
+  supplierLinks  ItemSupplier[]
+  purchaseReceipts PurchaseReceipt[]
+  openingPurchases OpeningPurchase[]
 
   @@index([categoryId])
   @@index([defaultSupplierId])
   @@map("items")
+}
+
+model ItemSupplier {
+  itemId     String   @map("item_id") @db.Char(36)
+  supplierId String   @map("supplier_id") @db.Char(36)
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  @@id([itemId, supplierId])
+  @@index([supplierId])
+  @@map("item_suppliers")
 }
 
 model ItemUnit {
@@ -203,6 +226,7 @@ model ItemUnit {
   item                   Item         @relation(fields: [itemId], references: [id], onDelete: Restrict)
   unit                   Unit         @relation(fields: [unitId], references: [id], onDelete: Restrict)
   snapshots              RequestItem[] @relation("RequestItemUnitSnapshot")
+  openingPurchases       OpeningPurchase[]
 
   @@unique([itemId, unitId])
   @@index([itemId, status])
@@ -243,6 +267,7 @@ model RequestRecord {
   items                RequestItem[]
   approvals            RequestApproval[]
   statusHistory        RequestStatusHistory[]
+  purchasePlan         PurchasePlan?
 
   @@index([branchId, status])
   @@index([createdByUserId, status])
@@ -275,6 +300,7 @@ model RequestItem {
   supplierSnapshot              Supplier          @relation("RequestItemSupplierSnapshot", fields: [supplierIdSnapshot], references: [id], onDelete: Restrict)
   addedBy                       User?             @relation("RequestItemAddedBy", fields: [addedByUserId], references: [id], onDelete: SetNull)
   removedBy                     User?             @relation("RequestItemRemovedBy", fields: [removedByUserId], references: [id], onDelete: SetNull)
+  purchaseAllocations           PurchaseAllocation[]
 
   @@index([requestId, lineStatus])
   @@index([branchItemIdSnapshot])
@@ -370,4 +396,129 @@ model DocumentNumberSequence {
 
   @@id([prefix, year])
   @@map("document_number_sequences")
+}
+
+enum PurchasePlanStatus {
+  draft
+  issued
+}
+
+enum PurchaseCostBasis {
+  last
+  average
+}
+
+model PurchasePlan {
+  id              String               @id @default(uuid()) @db.Char(36)
+  requestId       String               @unique @map("request_id") @db.Char(36)
+  revision        Int                  @default(1)
+  status          PurchasePlanStatus   @default(draft)
+  basis           PurchaseCostBasis
+  createdByUserId String               @map("created_by_user_id") @db.Char(36)
+  issuedByUserId  String?              @map("issued_by_user_id") @db.Char(36)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime             @updatedAt @map("updated_at") @db.DateTime(3)
+  issuedAt        DateTime?            @map("issued_at") @db.DateTime(3)
+  request         RequestRecord        @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  createdBy       User                 @relation("PurchasePlanCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  issuedBy        User?                @relation("PurchasePlanIssuer", fields: [issuedByUserId], references: [id], onDelete: Restrict)
+  allocations     PurchaseAllocation[]
+  sheets          PurchaseSheet[]
+
+  @@index([createdByUserId])
+  @@index([issuedByUserId])
+  @@map("purchase_plans")
+}
+
+model PurchaseAllocation {
+  id                String            @id @default(uuid()) @db.Char(36)
+  planId            String            @map("plan_id") @db.Char(36)
+  requestItemId     String            @map("request_item_id") @db.Char(36)
+  supplierId        String            @map("supplier_id") @db.Char(36)
+  quantity          Decimal           @db.Decimal(18, 6)
+  estimatedUnitCost Decimal?          @map("estimated_unit_cost") @db.Decimal(38, 6)
+  sheetId           String?           @map("sheet_id") @db.Char(36)
+  plan              PurchasePlan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  requestItem       RequestItem       @relation(fields: [requestItemId], references: [id], onDelete: Restrict)
+  supplier          Supplier          @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  sheet             PurchaseSheet?    @relation(fields: [sheetId], references: [id], onDelete: Restrict)
+  receipts          PurchaseReceipt[]
+
+  @@unique([planId, requestItemId, supplierId])
+  @@index([requestItemId])
+  @@index([supplierId])
+  @@index([sheetId])
+  @@map("purchase_allocations")
+}
+
+model PurchaseSheet {
+  id           String               @id @default(uuid()) @db.Char(36)
+  planId       String               @map("plan_id") @db.Char(36)
+  supplierId   String               @map("supplier_id") @db.Char(36)
+  number       String               @unique @db.VarChar(80)
+  supplierCode String               @map("supplier_code") @db.VarChar(80)
+  supplierName String               @map("supplier_name") @db.VarChar(200)
+  issuedAt     DateTime             @map("issued_at") @db.DateTime(3)
+  plan         PurchasePlan         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  supplier     Supplier             @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  allocations  PurchaseAllocation[]
+
+  @@unique([planId, supplierId])
+  @@index([supplierId])
+  @@map("purchase_sheets")
+}
+
+model PurchaseReceipt {
+  id               String             @id @default(uuid()) @db.Char(36)
+  operationId      String             @unique @map("operation_id") @db.Char(36)
+  allocationId     String             @map("allocation_id") @db.Char(36)
+  itemId           String             @map("item_id") @db.Char(36)
+  supplierId       String             @map("supplier_id") @db.Char(36)
+  quantity         Decimal            @db.Decimal(18, 6)
+  baseQuantity     Decimal            @map("base_quantity") @db.Decimal(36, 12)
+  unitCost         Decimal            @map("unit_cost") @db.Decimal(18, 6)
+  netAmount        Decimal            @map("net_amount") @db.Decimal(36, 12)
+  purchasedOn      DateTime           @map("purchased_on") @db.Date
+  invoiceReference String?            @map("invoice_reference") @db.VarChar(200)
+  recordedByUserId String             @map("recorded_by_user_id") @db.Char(36)
+  createdAt        DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+  allocation       PurchaseAllocation @relation(fields: [allocationId], references: [id], onDelete: Restrict)
+  item             Item               @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  supplier         Supplier           @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  recordedBy       User               @relation(fields: [recordedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([itemId, supplierId, purchasedOn, createdAt])
+  @@index([allocationId])
+  @@index([supplierId])
+  @@index([recordedByUserId])
+  @@map("purchase_receipts")
+}
+
+model OpeningPurchase {
+  id               String   @id @default(uuid()) @db.Char(36)
+  operationId      String   @unique @map("operation_id") @db.Char(36)
+  itemId           String   @map("item_id") @db.Char(36)
+  supplierId       String   @map("supplier_id") @db.Char(36)
+  itemUnitId       String   @map("item_unit_id") @db.Char(36)
+  supplierCode     String   @map("supplier_code") @db.VarChar(80)
+  supplierName     String   @map("supplier_name") @db.VarChar(200)
+  unitCode         String   @map("unit_code") @db.VarChar(40)
+  quantity         Decimal  @db.Decimal(18, 6)
+  baseQuantity     Decimal  @map("base_quantity") @db.Decimal(36, 12)
+  unitCost         Decimal  @map("unit_cost") @db.Decimal(18, 6)
+  netAmount        Decimal  @map("net_amount") @db.Decimal(36, 12)
+  purchasedOn      DateTime @map("purchased_on") @db.Date
+  invoiceReference String?  @map("invoice_reference") @db.VarChar(200)
+  recordedByUserId String   @map("recorded_by_user_id") @db.Char(36)
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  item             Item     @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  supplier         Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  itemUnit         ItemUnit @relation(fields: [itemUnitId], references: [id], onDelete: Restrict)
+  recordedBy       User     @relation(fields: [recordedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([itemId, supplierId, purchasedOn, createdAt])
+  @@index([supplierId])
+  @@index([itemUnitId])
+  @@index([recordedByUserId])
+  @@map("opening_purchases")
 }

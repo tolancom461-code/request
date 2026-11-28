@@ -6,7 +6,7 @@ const targetUrl = process.env.TARGET_TIDB_DATABASE_URL ?? process.env.APP_DATABA
 const prisma = targetUrl ? new PrismaClient({ datasources: { db: { url: secureMysqlUrl(targetUrl) } } }) : null;
 const appUrl = process.env.APP_DATABASE_URL ?? process.env.DATABASE_URL;
 const appPrisma = appUrl ? new PrismaClient({ datasources: { db: { url: secureMysqlUrl(appUrl) } } }) : null;
-const applicationTables = new Set(["users", "roles", "permissions", "role_permissions", "user_roles", "branches", "user_branch_scopes", "categories", "items", "units", "item_units", "branch_items", "suppliers", "requests", "request_items", "request_approvals", "request_status_history", "audit_logs", "notifications", "server_sessions", "document_number_sequences", "_prisma_migrations"]);
+const applicationTables = new Set(["users", "roles", "permissions", "role_permissions", "user_roles", "branches", "user_branch_scopes", "categories", "items", "units", "item_units", "item_suppliers", "branch_items", "suppliers", "requests", "request_items", "request_approvals", "request_status_history", "audit_logs", "notifications", "server_sessions", "document_number_sequences", "purchase_plans", "purchase_allocations", "purchase_sheets", "purchase_receipts", "opening_purchases", "_prisma_migrations"]);
 
 afterAll(async () => {
   await prisma?.$disconnect();

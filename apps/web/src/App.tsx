@@ -314,7 +314,7 @@ function ApplicationShell({ user, sessionError, onRetry, onLogout }: { user: Ses
     switch (activeRoute.view) {
       case "requisitions": return <RequisitionPage online={serviceOnline} />;
       case "manager": return <ManagerApprovalPage online={serviceOnline} onNavigate={navigate} path={path} permissions={permissions} />;
-      case "warehouse": return <WarehouseOperationsPage online={serviceOnline} onNavigate={navigate} path={path} />;
+      case "warehouse": return <WarehouseOperationsPage online={serviceOnline} onNavigate={navigate} path={path} permissions={permissions} />;
       case "reports": return <ReportsDashboardPage canExport={permissions.includes("reports.export")} online={serviceOnline} path={path} />;
       case "items": return <ItemsPage online={serviceOnline} />;
       case "audit": return <AuditActivityWorkspace online={serviceOnline} path={path} />;

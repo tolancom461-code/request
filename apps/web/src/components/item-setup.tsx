@@ -6,9 +6,9 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { notifyApiAccess } from "../session-events";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Checkbox,
@@ -34,6 +34,8 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { ItemPurchaseHistory } from "./item-setup-purchase-history";
+import { api, mutate } from "./item-setup-api";
 import {
   BusyButton,
   EmptyState,
@@ -79,6 +81,7 @@ type Item = {
   imageObjectKey: string | null;
   defaultSupplierId: string | null;
   defaultSupplier: Supplier | null;
+  supplierLinks: Array<{ supplierId: string; supplier: Supplier }>;
   category: Named;
   itemUnits: ItemUnit[];
   branchItems: Array<{ branchId: string; status: Status }>;
@@ -101,6 +104,8 @@ type ItemFields = {
 };
 const baseUnit = (item: Item) =>
   item.itemUnits.find(unit => unit.isBaseUnit && unit.status === "active");
+const activeSupplier = (supplier: Supplier) =>
+  supplier.status === "active" && !supplier.deletedAt;
 const ready = (item: Item) =>
   item.status === "active" &&
   !item.deletedAt &&
@@ -111,34 +116,6 @@ const ready = (item: Item) =>
       !item.defaultSupplier.deletedAt
   );
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    cache: "no-store",
-    credentials: "same-origin",
-    ...init,
-  });
-  const payload = await response.json().catch(() => null);
-  notifyApiAccess(response.status, payload, init?.method);
-  if (!response.ok)
-    throw new Error(payload?.message ?? `HTTP ${response.status}`);
-  return payload as T;
-}
-async function mutate<T>(
-  path: string,
-  body: unknown,
-  method = "POST"
-): Promise<T> {
-  const csrf = await api<{ csrfToken: string }>("/api/v1/auth/csrf");
-  const multipart = body instanceof FormData;
-  return api<T>(path, {
-    method,
-    headers: {
-      "X-CSRF-Token": csrf.csrfToken,
-      ...(multipart ? {} : { "Content-Type": "application/json" }),
-    },
-    body: multipart ? body : JSON.stringify(body),
-  });
-}
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "HTTP error";
 
@@ -152,7 +129,9 @@ export function ItemSetupWorkspace({ online }: { online: boolean }) {
   const [success, setSuccess] = useState<string | null>(null);
   const [editing, setEditing] = useState<Item | null | undefined>();
   const [supplierItemId, setSupplierItemId] = useState("");
-  const [supplierId, setSupplierId] = useState("");
+  const [supplierIds, setSupplierIds] = useState<string[]>([]);
+  const [defaultSupplierId, setDefaultSupplierId] = useState("");
+  const [supplierHistoryVersion, setSupplierHistoryVersion] = useState(0);
   const [branchId, setBranchId] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [expectedIds, setExpectedIds] = useState<string[]>([]);
@@ -195,8 +174,36 @@ export function ItemSetupWorkspace({ online }: { online: boolean }) {
   }, [load]);
   const supplierItem = items.find(item => item.id === supplierItemId);
   useEffect(() => {
-    setSupplierId(supplierItem?.defaultSupplierId ?? "");
+    setSupplierIds(
+      supplierItem?.supplierLinks.map(link => link.supplierId) ?? []
+    );
+    setDefaultSupplierId(supplierItem?.defaultSupplierId ?? "");
   }, [supplierItem]);
+  const supplierOptions = useMemo(() => {
+    const byId = new Map(
+      options?.suppliers.map(supplier => [supplier.id, supplier])
+    );
+    for (const link of supplierItem?.supplierLinks ?? [])
+      byId.set(link.supplierId, link.supplier);
+    return [...byId.values()];
+  }, [options, supplierItem]);
+  const selectedSuppliers = useMemo(
+    () => supplierOptions.filter(supplier => supplierIds.includes(supplier.id)),
+    [supplierOptions, supplierIds]
+  );
+  const defaultOptions = selectedSuppliers.filter(activeSupplier);
+  const validDefault = defaultOptions.some(
+    supplier => supplier.id === defaultSupplierId
+  );
+  const expectedSupplierIds =
+    supplierItem?.supplierLinks.map(link => link.supplierId) ?? [];
+  const expectedDefaultSupplierId = supplierItem?.defaultSupplierId ?? null;
+  const supplierDirty =
+    (defaultSupplierId || null) !== expectedDefaultSupplierId ||
+    supplierIds.length !== expectedSupplierIds.length ||
+    supplierIds.some(id => !expectedSupplierIds.includes(id));
+  const supplierEditDisabled =
+    !online || busy || loading || !supplierItem || Boolean(supplierItem.deletedAt);
   const chooseRestaurant = (id: string) => {
     setBranchId(id);
     const ids = items
@@ -262,15 +269,22 @@ export function ItemSetupWorkspace({ online }: { online: boolean }) {
   const dirty =
     [...selectedIds].sort().join(",") !== [...expectedIds].sort().join(",");
   const saveSupplier = async () => {
-    if (!online || !supplierItemId || !supplierId) return;
+    if (supplierEditDisabled || !supplierItem || !validDefault || !supplierDirty)
+      return;
     setBusy(true);
     setError(null);
     setSuccess(null);
     try {
       await mutate(
-        `/api/v1/admin/item-setup/items/${supplierItemId}/supplier`,
-        { supplierId }
+        `/api/v1/admin/item-setup/items/${supplierItem.id}/suppliers`,
+        {
+          supplierIds,
+          defaultSupplierId,
+          expectedSupplierIds,
+          expectedDefaultSupplierId,
+        }
       );
+      setSupplierHistoryVersion(version => version + 1);
       await load();
       setSuccess(t("setup.supplierSaved"));
     } catch (caught) {
@@ -402,7 +416,7 @@ export function ItemSetupWorkspace({ online }: { online: boolean }) {
                         <TableCell>{t("item")}</TableCell>
                         <TableCell>{t("category")}</TableCell>
                         <TableCell>{t("unit")}</TableCell>
-                        <TableCell>{t("supplier")}</TableCell>
+                        <TableCell>{t("setup.defaultSupplier")}</TableCell>
                         <TableCell>{t("status")}</TableCell>
                         <TableCell>{t("actions")}</TableCell>
                       </TableRow>
@@ -477,28 +491,55 @@ export function ItemSetupWorkspace({ online }: { online: boolean }) {
                     }}
                   >
                     <MenuItem value="">{t("setup.chooseItem")}</MenuItem>
-                    {items
-                      .filter(
-                        item => item.status === "active" && !item.deletedAt
-                      )
-                      .map(item => (
-                        <MenuItem key={item.id} value={item.id}>
-                          {item.sku} · {name(item)}
-                        </MenuItem>
-                      ))}
+                    {items.map(item => (
+                      <MenuItem key={item.id} value={item.id}>
+                        {item.sku} · {name(item)}
+                        {item.status === "inactive" ? ` · ${t("inactive")}` : ""}
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
+                <Autocomplete
+                  multiple
+                  disableCloseOnSelect
+                  openOnFocus
+                  options={supplierOptions}
+                  value={selectedSuppliers}
+                  disabled={supplierEditDisabled}
+                  getOptionKey={supplier => supplier.id}
+                  getOptionLabel={supplier =>
+                    `${supplier.supplierCode} · ${supplier.supplierName}${
+                      activeSupplier(supplier) ? "" : ` · ${t("inactive")}`
+                    }`
+                  }
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  onChange={(_event, suppliers) => {
+                    setSupplierIds(suppliers.map(supplier => supplier.id));
+                    const activeIds = suppliers
+                      .filter(activeSupplier)
+                      .map(supplier => supplier.id);
+                    if (!activeIds.includes(defaultSupplierId))
+                      setDefaultSupplierId(
+                        activeIds.length === 1 ? activeIds[0] : ""
+                      );
+                  }}
+                  renderInput={params => (
+                    <TextField {...params} label={t("setup.linkedSuppliers")} />
+                  )}
+                />
                 <FormControl fullWidth>
-                  <InputLabel id="setup-supplier">{t("supplier")}</InputLabel>
+                  <InputLabel id="setup-supplier">
+                    {t("setup.defaultSupplier")}
+                  </InputLabel>
                   <Select
                     labelId="setup-supplier"
-                    label={t("supplier")}
-                    value={supplierId}
-                    disabled={!online || busy || loading || !supplierItemId}
-                    onChange={event => setSupplierId(event.target.value)}
+                    label={t("setup.defaultSupplier")}
+                    value={validDefault ? defaultSupplierId : ""}
+                    disabled={supplierEditDisabled || !defaultOptions.length}
+                    onChange={event => setDefaultSupplierId(event.target.value)}
                   >
                     <MenuItem value="">{t("selectSupplier")}</MenuItem>
-                    {options.suppliers.map(supplier => (
+                    {defaultOptions.map(supplier => (
                       <MenuItem key={supplier.id} value={supplier.id}>
                         {supplier.supplierCode} · {supplier.supplierName}
                       </MenuItem>
@@ -510,9 +551,7 @@ export function ItemSetupWorkspace({ online }: { online: boolean }) {
                 </Typography>
                 <BusyButton
                   busy={busy}
-                  disabled={
-                    !online || loading || !supplierId || !supplierItemId
-                  }
+                  disabled={supplierEditDisabled || !validDefault || !supplierDirty}
                   onClick={() => void saveSupplier()}
                   variant="contained"
                 >
@@ -523,6 +562,15 @@ export function ItemSetupWorkspace({ online }: { online: boolean }) {
                 </Button>
               </Box>
             </SectionCard>
+          )}
+          {step === 1 && supplierItem && (
+            <ItemPurchaseHistory
+              key={supplierItem.id}
+              itemId={supplierItem.id}
+              itemLabel={name(supplierItem)}
+              online={online}
+              version={supplierHistoryVersion}
+            />
           )}
           {step === 2 && (
             <SectionCard title={t("setup.restaurantItems")}>
@@ -617,7 +665,7 @@ export function ItemSetupWorkspace({ online }: { online: boolean }) {
                               <TableCell>{t("item")}</TableCell>
                               <TableCell>{t("category")}</TableCell>
                               <TableCell>{t("unit")}</TableCell>
-                              <TableCell>{t("supplier")}</TableCell>
+                              <TableCell>{t("setup.defaultSupplier")}</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>

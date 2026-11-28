@@ -13,6 +13,9 @@ const permissions = [
   ["request.return", "Return branch-scoped pending requests"],
   ["request.reject", "Reject branch-scoped pending requests"],
   ["warehouse.process", "Process warehouse requests"],
+  ["purchase.prepare", "Prepare purchase plans"],
+  ["purchase.issue", "Issue supplier purchase sheets"],
+  ["purchase.record", "Record actual supplier purchases"],
   ["admin.manage", "Manage system administration resources"],
   ["reports.view", "View authorized operational reports"],
   ["reports.export", "Export authorized operational reports"],
@@ -22,7 +25,7 @@ const rolePermissions: Record<string, string[]> = {
   system_admin: permissions.map(([code]) => code),
   branch_employee: ["profile.read", "branch.read", "request.submit"],
   branch_manager: ["profile.read", "branch.read", "request.manager.review", "request.review", "request.approve", "request.return", "request.reject", "reports.view", "reports.export"],
-  warehouse_manager: ["profile.read", "branch.read", "warehouse.process", "reports.view", "reports.export"],
+  warehouse_manager: ["profile.read", "branch.read", "warehouse.process", "purchase.prepare", "purchase.issue", "purchase.record", "reports.view", "reports.export"],
 };
 
 const roles = [

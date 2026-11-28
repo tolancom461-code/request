@@ -25,6 +25,8 @@ import { ManagerApprovalController } from "./manager-approval.controller.js";
 import { ManagerApprovalService } from "./manager-approval.service.js";
 import { WarehouseOperationsController } from "./warehouse-operations.controller.js";
 import { WarehouseOperationsService } from "./warehouse-operations.service.js";
+import { PurchaseController, PurchaseHistoryController } from "./purchase.controller.js";
+import { PurchaseService } from "./purchase.service.js";
 import { NotificationController } from "./notification.controller.js";
 import { NotificationService } from "./notification.service.js";
 import { AuditActivityController } from "./audit-activity.controller.js";
@@ -156,7 +158,7 @@ class FoundationController {
 }
 
 @Module({
-  controllers: [AuthController, HealthController, FoundationController, AdminController, DocumentNumberingController, AuditActivityController, ReportsController, ItemSetupController, ItemsController, RequisitionController, ManagerApprovalController, WarehouseOperationsController, NotificationController],
+  controllers: [AuthController, HealthController, FoundationController, AdminController, DocumentNumberingController, AuditActivityController, ReportsController, ItemSetupController, ItemsController, RequisitionController, ManagerApprovalController, WarehouseOperationsController, PurchaseController, PurchaseHistoryController, NotificationController],
   providers: [
     PrismaService,
     SessionService,
@@ -174,6 +176,7 @@ class FoundationController {
     RequisitionService,
     ManagerApprovalService,
     WarehouseOperationsService,
+    PurchaseService,
     NotificationService,
     AuditActivityService,
     ReportsService,

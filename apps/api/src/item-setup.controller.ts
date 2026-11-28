@@ -19,6 +19,13 @@ type RequestWithSession = FastifyRequest & {
   restaurantSession?: SessionRecord;
 };
 const id = z.string().uuid();
+const supplierId = id.transform(value => value.toLowerCase());
+const suppliersSchema = z.object({
+  supplierIds: z.array(supplierId).min(1).max(5000),
+  defaultSupplierId: supplierId,
+  expectedSupplierIds: z.array(supplierId).max(5000),
+  expectedDefaultSupplierId: supplierId.nullable(),
+});
 const itemSchema = z.object({
   sku: z.string().trim().min(1).max(80),
   barcode: z.string().trim().max(120).nullable().optional(),
@@ -95,8 +102,19 @@ export class ItemSetupController {
   ) {
     return this.setup.setSupplier(
       this.user(request),
-      id.parse(itemId),
-      z.object({ supplierId: id }).parse(body).supplierId
+      id.parse(itemId).toLowerCase(),
+      z.object({ supplierId }).parse(body).supplierId
+    );
+  }
+  @Post("items/:itemId/suppliers") suppliers(
+    @Req() request: RequestWithSession,
+    @Param("itemId") itemId: string,
+    @Body() body: unknown
+  ) {
+    return this.setup.setSuppliers(
+      this.user(request),
+      id.parse(itemId).toLowerCase(),
+      suppliersSchema.parse(body)
     );
   }
   @Post("restaurants/:branchId/items") assign(

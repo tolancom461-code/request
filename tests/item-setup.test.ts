@@ -41,6 +41,11 @@ function fixture() {
         .fn()
         .mockResolvedValue({ id: "supplier", status: "active" }),
     },
+    itemSupplier: {
+      upsert: vi.fn(),
+      createMany: vi.fn(),
+      deleteMany: vi.fn(),
+    },
     branch: { findFirst: vi.fn().mockResolvedValue({ id: "restaurant" }) },
     branchItem: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -110,10 +115,93 @@ describe("Item-first setup business operations", () => {
     await expect(
       service.setSupplier("admin", "rice", "supplier")
     ).resolves.toMatchObject({ itemId: "rice", supplierId: "supplier" });
+    expect(tx.itemSupplier.upsert).toHaveBeenCalledWith({
+      where: { itemId_supplierId: { itemId: "rice", supplierId: "supplier" } },
+      create: { itemId: "rice", supplierId: "supplier" },
+      update: {},
+    });
+    expect(tx.itemSupplier.deleteMany).not.toHaveBeenCalled();
     expect(tx.item.update).toHaveBeenCalledWith({
       where: { id: "rice" },
       data: { defaultSupplierId: "supplier" },
     });
+  });
+
+  it("keeps the linked default and alternates in one transaction and audits removed links", async () => {
+    const { service, tx, prisma } = fixture();
+    tx.item.findUnique.mockResolvedValue({
+      id: "rice",
+      defaultSupplierId: "supplier",
+      supplierLinks: [{ supplierId: "supplier" }, { supplierId: "old" }],
+    } as never);
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ id: "rice" }])
+      .mockResolvedValueOnce([{ id: "new" }]);
+    await expect(
+      service.setSuppliers("admin", "rice", {
+        supplierIds: ["supplier", "new"],
+        defaultSupplierId: "new",
+        expectedSupplierIds: ["old", "supplier"],
+        expectedDefaultSupplierId: "supplier",
+      })
+    ).resolves.toEqual({
+      itemId: "rice",
+      supplierIds: ["supplier", "new"],
+      defaultSupplierId: "new",
+    });
+    expect(tx.itemSupplier.createMany).toHaveBeenCalledWith({
+      data: [{ itemId: "rice", supplierId: "new" }],
+    });
+    expect(tx.item.update).toHaveBeenCalledWith({
+      where: { id: "rice" },
+      data: { defaultSupplierId: "new" },
+    });
+    expect(tx.itemSupplier.deleteMany).toHaveBeenCalledWith({
+      where: { itemId: "rice", supplierId: { in: ["old"] } },
+    });
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "setup_suppliers_saved",
+        afterData: {
+          previousSupplierIds: ["supplier", "old"],
+          previousDefaultSupplierId: "supplier",
+          supplierIds: ["supplier", "new"],
+          defaultSupplierId: "new",
+        },
+      }),
+    });
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a stale edit or an inactive new supplier without writing", async () => {
+    const { service, tx } = fixture();
+    tx.item.findUnique.mockResolvedValue({
+      id: "rice",
+      defaultSupplierId: "supplier",
+      supplierLinks: [{ supplierId: "supplier" }],
+    } as never);
+    const pending = {
+      supplierIds: ["supplier", "inactive"],
+      defaultSupplierId: "supplier",
+      expectedSupplierIds: ["supplier"],
+      expectedDefaultSupplierId: "supplier",
+    };
+    await expect(
+      service.setSuppliers("admin", "rice", {
+        ...pending,
+        expectedDefaultSupplierId: null,
+      })
+    ).rejects.toThrow("changed");
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ id: "rice" }])
+      .mockResolvedValueOnce([{ id: "supplier" }]);
+    await expect(service.setSuppliers("admin", "rice", pending)).rejects.toThrow(
+      "active suppliers"
+    );
+    expect(tx.itemSupplier.createMany).not.toHaveBeenCalled();
+    expect(tx.itemSupplier.deleteMany).not.toHaveBeenCalled();
+    expect(tx.item.update).not.toHaveBeenCalled();
+    expect(tx.auditLog.create).not.toHaveBeenCalled();
   });
 
   it("removes an image only after the item transaction succeeds", async () => {

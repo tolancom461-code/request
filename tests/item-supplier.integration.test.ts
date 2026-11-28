@@ -80,6 +80,7 @@ afterAll(async () => {
   if (itemId) {
     await prisma.branchItem.deleteMany({ where: { itemId } });
     await prisma.itemUnit.deleteMany({ where: { itemId } });
+    await prisma.itemSupplier.deleteMany({ where: { itemId } });
     await prisma.item.delete({ where: { id: itemId } });
   }
   await prisma.branch.deleteMany({ where: { id: { in: branchIds } } });
@@ -113,7 +114,7 @@ describe("Unified item supplier and restaurant assignment", () => {
         .defaultSupplierId
     ).toBe(supplierId);
   });
-  it("shares one supplier across the restaurants assigned the same item without legacy supplier links", async () => {
+  it("shares the default supplier across restaurants assigned the same item", async () => {
     for (const branchId of branchIds)
       await setup.assignRestaurantItems(actorId, branchId, [itemId], []);
     const links = await prisma.branchItem.findMany({ where: { itemId } });
@@ -148,6 +149,8 @@ describe("Unified item supplier and restaurant assignment", () => {
     });
     await submissions.submitFirstTime(request.id, actorId);
     await setup.setSupplier(actorId, itemId, otherSupplierId);
+    expect((await prisma.itemSupplier.findMany({ where: { itemId }, select: { supplierId: true } })).map(row => row.supplierId).sort())
+      .toEqual([supplierId, otherSupplierId].sort());
     expect(
       (await prisma.requestItem.findUniqueOrThrow({ where: { id: line.id } }))
         .supplierIdSnapshot

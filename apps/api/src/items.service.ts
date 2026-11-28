@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { ActorType, Prisma, RecordStatus } from "@prisma/client";
+import { assertBaseUnitCanChange } from "./master-data-integrity.service.js";
 import { PrismaService } from "./prisma.service.js";
 import { StorageService } from "./storage.service.js";
 
@@ -9,6 +10,7 @@ export type ItemUnitInput = { unitId: string; conversionFactorToBase: string; is
 export type BranchItemInput = { branchId: string; status?: RecordStatus };
 
 const txOptions = { maxWait: 10_000, timeout: 60_000 };
+const unitTxOptions = { ...txOptions, isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted };
 const asJson = (value: unknown) => value as Prisma.InputJsonValue;
 const clean = (value: string | null | undefined) => value == null || value.trim() === "" ? null : value.trim();
 
@@ -139,20 +141,25 @@ export class ItemsService {
     if (input.isBaseUnit && !factor.equals(1)) throw new BadRequestException("A base unit conversion factor must equal 1.");
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM items WHERE id = ${itemId} FOR UPDATE`;
         await this.item(tx, itemId);
         const unit = await tx.unit.findUnique({ where: { id: input.unitId } });
         if (!unit || unit.status !== RecordStatus.active) throw new BadRequestException("Unit is not available.");
-        if (input.isBaseUnit) await tx.itemUnit.updateMany({ where: { itemId, isBaseUnit: true }, data: { isBaseUnit: false, activeBaseItemId: null } });
+        if (input.isBaseUnit) {
+          await assertBaseUnitCanChange(tx, itemId);
+          await tx.itemUnit.updateMany({ where: { itemId, isBaseUnit: true }, data: { isBaseUnit: false, activeBaseItemId: null } });
+        }
         const status = input.status ?? RecordStatus.active;
         const row = await tx.itemUnit.create({ data: { itemId, unitId: input.unitId, conversionFactorToBase: factor, isBaseUnit: Boolean(input.isBaseUnit), status, activeBaseItemId: input.isBaseUnit && status === RecordStatus.active ? itemId : null } });
         await this.audit(tx, actorUserId, "item_unit", row.id, "created", undefined, { itemId, unitId: row.unitId, factor: row.conversionFactorToBase.toString(), isBaseUnit: row.isBaseUnit, status: row.status });
         return row;
-      }, txOptions);
+      }, unitTxOptions);
     } catch (error) { return this.duplicate(error, "Item unit"); }
   }
 
   async updateUnit(itemId: string, itemUnitId: string, input: Partial<ItemUnitInput>, actorUserId: string) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM items WHERE id = ${itemId} FOR UPDATE`;
       const before = await tx.itemUnit.findFirst({ where: { id: itemUnitId, itemId } });
       if (!before) throw new NotFoundException("Item unit was not found.");
       const factor = input.conversionFactorToBase === undefined ? before.conversionFactorToBase : new Prisma.Decimal(input.conversionFactorToBase);
@@ -161,13 +168,15 @@ export class ItemsService {
       if (!factor.gt(0)) throw new BadRequestException("Conversion factor must be greater than zero.");
       if (isBase && !factor.equals(1)) throw new BadRequestException("A base unit conversion factor must equal 1.");
       const parent = await this.item(tx, itemId);
+      const removingActiveBase = isBase && before.status === RecordStatus.active && status !== RecordStatus.active;
+      if (isBase !== before.isBaseUnit || removingActiveBase) await assertBaseUnitCanChange(tx, itemId);
       if (before.isBaseUnit && before.status === RecordStatus.active && status !== RecordStatus.active && parent.status === RecordStatus.active) throw new BadRequestException("Deactivate or change an active item's base unit only after selecting a replacement base unit.");
       if (isBase) await tx.itemUnit.updateMany({ where: { itemId, id: { not: itemUnitId }, isBaseUnit: true }, data: { isBaseUnit: false, activeBaseItemId: null } });
       const row = await tx.itemUnit.update({ where: { id: itemUnitId }, data: { conversionFactorToBase: factor, isBaseUnit: isBase, status, activeBaseItemId: isBase && status === RecordStatus.active ? itemId : null } });
       if (parent.status === RecordStatus.active) await this.assertOperationalBase(tx, itemId);
       await this.audit(tx, actorUserId, "item_unit", itemUnitId, "updated", { factor: before.conversionFactorToBase.toString(), isBaseUnit: before.isBaseUnit, status: before.status }, { factor: row.conversionFactorToBase.toString(), isBaseUnit: row.isBaseUnit, status: row.status });
       return row;
-    }, txOptions);
+    }, unitTxOptions);
   }
 
   async listBranches(itemId: string) { await this.item(this.prisma, itemId); return this.prisma.branchItem.findMany({ where: { itemId }, include: { branch: true }, orderBy: { branch: { code: "asc" } } }); }
